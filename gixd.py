@@ -1,5 +1,5 @@
 from pathlib import Path
-from gixd_data import GIXDData, GIXDDataset, GIXDProject
+from xrd_anlyutils.gixd.data import GIXDData, GIXDDataset, GIXDProject
 
 # Define data and plot paths
 DATA_PATH = Path('~/workspace/data/lipid/GIXD').expanduser()
