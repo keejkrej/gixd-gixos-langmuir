@@ -46,12 +46,12 @@ WATER_PRESSURE = 0.4
 
 def main():
     # Load water reference
-    water_ref = GIXDData.from_files(DATA_PATH, 'water', WATER_INDEX, WATER_PRESSURE)
+    water_ref = GIXDData.load(DATA_PATH, 'water', WATER_INDEX, WATER_PRESSURE)
 
     # Load all datasets and subtract water
     datasets = {}
     for config in DATASET_CONFIGS:
-        dataset = GIXDDataset.from_config(
+        dataset = GIXDDataset.load(
             DATA_PATH,
             config['name'],
             config['indices'],
@@ -67,7 +67,14 @@ def main():
         plot_path=PLOT_PATH,
         datasets=datasets
     )
-    project.plot_all()
+    project.plot_all(
+        roi_q=[0.7, 2.0, 0, 10],
+        roi_theta=[1.25, 1.5, 0, 60],
+        fit_q_range=(0.7, 2.0),
+        ignore_q_range=[(1.49, 1.53), (1.67, 1.71)],
+        fit_theta_range=(0, 50),
+        ignore_theta_range=[(0, 5)]
+    )
 
 if __name__ == '__main__':
-    main() 
+    main()
