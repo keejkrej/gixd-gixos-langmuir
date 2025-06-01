@@ -1,5 +1,5 @@
 from pathlib import Path
-from xrd_anlyutils.data.gixd import GIXDData, GIXDDataset, GIXDProject
+from utils.data.gixd import GIXDData, GIXDDataset, GIXDProject
 
 # Define data and plot paths
 DATA_PATH = Path('~/workspace/data/lipid/GIXD').expanduser()
@@ -43,38 +43,34 @@ DATASET_CONFIGS = [
 WATER_INDEX = 44
 WATER_PRESSURE = 0.4
 
+# Load water reference
+water_ref = GIXDData.load(DATA_PATH, 'water', WATER_INDEX, WATER_PRESSURE)
 
-def main():
-    # Load water reference
-    water_ref = GIXDData.load(DATA_PATH, 'water', WATER_INDEX, WATER_PRESSURE)
-
-    # Load all datasets and subtract water
-    datasets = {}
-    for config in DATASET_CONFIGS:
-        dataset = GIXDDataset.load(
-            DATA_PATH,
-            config['name'],
-            config['indices'],
-            config['pressures'],
-        )
-        dataset.water_reference = water_ref
-        dataset.subtract_water()
-        datasets[config['name']] = dataset
-
-    # Create project and plot all
-    project = GIXDProject(
-        data_path=DATA_PATH,
-        plot_path=PLOT_PATH,
-        datasets=datasets
+# Load all datasets and subtract water
+datasets = {}
+for config in DATASET_CONFIGS:
+    dataset = GIXDDataset.load(
+        DATA_PATH,
+        config['name'],
+        config['indices'],
+        config['pressures'],
     )
-    project.plot_all(
-        roi_q=[0.7, 2.0, 0, 10],
-        roi_theta=[1.25, 1.5, 0, 60],
-        fit_q_range=(0.7, 2.0),
-        ignore_q_range=[(1.49, 1.53), (1.67, 1.71)],
-        fit_theta_range=(0, 50),
-        ignore_theta_range=[(0, 5)]
-    )
+    dataset.water_reference = water_ref
+    dataset.subtract_water()
+    datasets[config['name']] = dataset
 
-if __name__ == '__main__':
-    main()
+# Create project and plot all
+project = GIXDProject(
+    data_path=DATA_PATH,
+    plot_path=PLOT_PATH,
+    datasets=datasets
+)
+project.plot_all(
+    roi_q=[0.7, 2.0, 0, 10],
+    roi_theta=[1.25, 1.5, 0, 60],
+    fit_q_range=(0.7, 2.0),
+    ignore_q_range=[(1.49, 1.53), (1.67, 1.71)],
+    fit_theta_range=(0, 50),
+    ignore_theta_range=[(0, 5)]
+)
+
