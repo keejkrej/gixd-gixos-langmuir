@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import tifffile
 import matplotlib.pyplot as plt
-import ast
 import glob
 import re
 
@@ -27,13 +26,6 @@ def parse_index_pressure(filename):
                 pressure = pressure_str # Keep as string if conversion fails
         return idx, pressure
     return None, None
-
-def load_axes_csv(csv_path, col1, col2):
-    df = pd.read_csv(csv_path)
-    # The values are stored as string representations of lists
-    arr1 = np.array(ast.literal_eval(df.iloc[0][col1]))
-    arr2 = np.array(ast.literal_eval(df.iloc[0][col2]))
-    return arr1, arr2
 
 def main():
     processed_root = Path(PROCESSED_DIR)
@@ -66,7 +58,7 @@ def main():
             offset_q += offset_step_q
         axs[0].set_xlabel('q (A$^{-1}$)')
         axs[0].set_ylabel('Intensity (a.u.)')
-        axs[0].set_title('Intensity vs q')
+        axs[0].set_title('I(q)')
         axs[0].legend()
         axs[0].set_ylim(-5, 10 + len(q_file_info) * offset_step_q)
 
@@ -85,7 +77,7 @@ def main():
             offset_theta += offset_step_theta
         axs[1].set_xlabel('theta (deg)')
         axs[1].set_ylabel('Intensity (a.u.)')
-        axs[1].set_title('Intensity vs theta')
+        axs[1].set_title('I(θ)')
         axs[1].legend()
         axs[1].set_ylim(-5, 10 + len(theta_file_info) * offset_step_theta)
 
@@ -145,7 +137,7 @@ def main():
             )
             axs2[0].set_xlabel("qxy (A$^{-1}$)")
             axs2[0].set_ylabel("qz (A$^{-1}$)")
-            axs[0].set_title(
+            axs2[0].set_title(
                 "I(qxy, qz)",
                 loc='center'
             )
