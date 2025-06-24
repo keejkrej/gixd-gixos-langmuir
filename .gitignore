@@ -3,3 +3,4 @@ processed/
 plot/
 __pycache__/
 .DS_Store
+*.zip
