@@ -13,15 +13,18 @@ import re
 
 def parse_index_pressure(filename):
     # Example: azotrans_54_10_cartesian.tif -> index=54, pressure=10.0
-    # Updated regex to handle decimal points directly in pressure
-    m = re.search(r'_(\d+)_([\d.]+)_', filename)
+    # Updated regex to handle decimal points directly in pressure and 'NA'
+    m = re.search(r'_(\d+)_([\d.]+|NA)_', filename)
     if m:
         idx = int(m.group(1))
         pressure_str = m.group(2)
-        try:
-            pressure = float(pressure_str)
-        except ValueError:
-            pressure = pressure_str # Keep as string if conversion fails
+        if pressure_str == 'NA':
+            pressure = 'NA'
+        else:
+            try:
+                pressure = float(pressure_str)
+            except ValueError:
+                pressure = pressure_str # Keep as string if conversion fails
         return idx, pressure
     return None, None
 
@@ -53,7 +56,7 @@ def main():
         for f in q_files:
             idx, pressure = parse_index_pressure(f)
             q_file_info.append((f, pressure, idx))
-        q_file_info.sort(key=lambda x: (x[1], x[2]))  # sort by pressure, then index
+        q_file_info.sort(key=lambda x: (float('inf') if x[1] == 'NA' else x[1], x[2]))  # sort by pressure, then index
         offset_q = 0
         offset_step_q = 2
         for i, (f, pressure, idx) in enumerate(q_file_info):
@@ -72,7 +75,7 @@ def main():
         for f in theta_files:
             idx, pressure = parse_index_pressure(f)
             theta_file_info.append((f, pressure, idx))
-        theta_file_info.sort(key=lambda x: (x[1], x[2]))  # sort by pressure, then index
+        theta_file_info.sort(key=lambda x: (float('inf') if x[1] == 'NA' else x[1], x[2]))  # sort by pressure, then index
         offset_theta = 0
         offset_step_theta = 2
         for i, (f, pressure, idx) in enumerate(theta_file_info):

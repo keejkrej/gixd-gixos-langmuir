@@ -2,9 +2,26 @@ from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
 import glob
+import re
 
 PROCESSED_DIR = Path('processed/gixos')
 PLOT_DIR = Path('plot/gixos')
+
+def parse_index_pressure(filename):
+    # Example: azotrans_54_10_sf.csv -> index=54, pressure=10.0
+    m = re.search(r'_(\d+)_([\d.]+|NA)_sf\.csv', filename)
+    if m:
+        idx = int(m.group(1))
+        pressure_str = m.group(2)
+        if pressure_str == 'NA':
+            pressure = 'NA'
+        else:
+            try:
+                pressure = float(pressure_str)
+            except ValueError:
+                pressure = pressure_str # Keep as string if conversion fails
+        return idx, pressure
+    return None, None
 
 def plot_sample(sample_name, sample_dir, plot_dir):
     plot_dir.mkdir(parents=True, exist_ok=True)
@@ -18,7 +35,11 @@ def plot_sample(sample_name, sample_dir, plot_dir):
     n_curves = len(csv_files)
     for i, csv_file in enumerate(csv_files):
         df = pd.read_csv(csv_file)
-        label = f"idx={df['index'][0]}, p={df['pressure'][0]}"
+        idx, pressure = parse_index_pressure(Path(csv_file).name)
+        if idx is not None:
+            label = f"idx={idx}, p={pressure}"
+        else:
+            label = Path(csv_file).name
         ax.scatter(df['qz'], df['sf'] + offset, label=label, facecolors='none', edgecolors='C'+str(i%10), alpha=1.0)
         offset += offset_step
     ax.set_xlabel('qz (A$^{-1}$)')

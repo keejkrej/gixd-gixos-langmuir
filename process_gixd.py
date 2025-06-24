@@ -57,7 +57,6 @@ def process_sample(data_path, name, index, pressure, processed_dir, da_water=Non
         theta_range=(ROI_Q[2], ROI_Q[3])
     )
     df_q = intensity_q.to_dataframe().reset_index()
-    df_q['pressure'] = pressure
     df_q.to_csv(processed_dir / f'{name}_{index}_{pressure_str}_intensity_q.csv', index=False)
     intensity_theta = extract_intensity_theta(
         da_polar,
@@ -65,7 +64,6 @@ def process_sample(data_path, name, index, pressure, processed_dir, da_water=Non
         theta_range=(ROI_THETA[2], ROI_THETA[3])
     )
     df_theta = intensity_theta.to_dataframe().reset_index()
-    df_theta['pressure'] = pressure
     df_theta.to_csv(processed_dir / f'{name}_{index}_{pressure_str}_intensity_theta.csv', index=False)
     print(f"Processed data for {name}_{index}_{pressure_str}.")
 

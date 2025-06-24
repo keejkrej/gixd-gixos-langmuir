@@ -51,8 +51,9 @@ def process_sample(data_path, name, index, pressure, processed_dir):
     data = np.loadtxt(dat_path, skiprows=HEADER_SKIP)
     qz = data[:, 0]
     sf = data[:, 1]
-    df = pd.DataFrame({'qz': qz, 'sf': sf, 'pressure': pressure, 'index': index})
-    out_csv = sample_dir / f"{name}_{index}_{pressure}_sf.csv"
+    df = pd.DataFrame({'qz': qz, 'sf': sf})
+    pressure_str = str(pressure) if pressure is not None else 'NA'
+    out_csv = sample_dir / f"{name}_{index}_{pressure_str}_sf.csv"
     df.to_csv(out_csv, index=False)
     print(f"Processed {out_csv}.")
 
