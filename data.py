@@ -1,17 +1,11 @@
 from typing import TypedDict
 
-
 class Sample(TypedDict):
     name: str
     index: list[int]
     pressure: list[float]
 
-
-WATER: Sample = {
-    "name": "water",
-    "index": [44],
-    "pressure": [0],
-}
+WATER: Sample = {"name": "water", "index": [44], "pressure": [0]}
 SAMPLES: list[Sample] = [
     {"name": "azotrans", "index": [54, 58, 62], "pressure": [10, 20, 30]},
     {"name": "azocis", "index": [78, 82, 86, 90], "pressure": [5, 10, 20, 30]},

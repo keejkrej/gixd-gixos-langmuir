@@ -10,8 +10,9 @@ PLOT_DIR = "plot/gixd"
 
 
 def parse_index_pressure(filename):
-    # Example: azotrans_54_10_cartesian.tif -> index=54, pressure=10.0
     m = re.search(r"_(\d+)_([\d.]+|NA)_", filename)
+    if not m:
+        raise ValueError(f"Could not parse index and pressure from filename: {filename}")
     idx = int(m.group(1))
     pressure = float(m.group(2))
     return idx, pressure
