@@ -7,7 +7,7 @@ from utils.data.gixd import (
     remove_peaks_from_1d,
 )
 import xarray as xr
-from data import Sample, SAMPLES, WATER
+from data_gixd import Sample, SAMPLES, WATER
 
 DATA_DIR = "data/gixd"
 PROCESSED_DIR = "processed/gixd"

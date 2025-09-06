@@ -1,74 +1,119 @@
 from pathlib import Path
-import numpy as np
+import os
 import pandas as pd
+import xarray as xr
+from utils.fit.rfxsf import fit_rfxsf
+from utils.fit.r import fit_r
+from data_gixos import SAMPLES, Sample
 
-# User-editable constants
-DATA_PATH = Path('./data/gixos')  # Path to GIXOS data directory
-PROCESSED_DIR = Path('processed/gixos')
-HEADER_SKIP = 30  # Number of header lines to skip in .dat files
 
-# Dataset configurations (edit as needed)
-DATASET_CONFIGS = [
-    {
-        'name': 'azotrans',
-        'indices': [49, 53, 57, 61],
-        'pressures': [0.5, 10, 20, 30],
-    },
-    {
-        'name': 'azocis',
-        'indices': [77, 81, 85, 89],
-        'pressures': [5, 10, 20, 30],
-    },
-    {
-        'name': 'azocis02',
-        'indices': [105, 109],
-        'pressures': [3.3, 30],
-    },
-    {
-        'name': 'azocis03',
-        'indices': [114, 118],
-        'pressures': [0.1, 30],
-    },
-    {
-        'name': 'dopc',
-        'indices': [15, 10, 19, 23],
-        'pressures': [0.1, 10, 20, 30],
-    },
-    {
-        'name': 'redazo',
-        'indices': [127, 131, 135, 139],
-        'pressures': [0.1, 10, 20, 30],
-    },
-]
+DATA_PATH = Path("./data/gixos")
+PROCESSED_DIR = Path("processed/gixos")
 
-def process_sample(data_path, name, index, pressure, processed_dir):
-    sample_dir = processed_dir / name
-    sample_dir.mkdir(parents=True, exist_ok=True)
-    dat_path = data_path / name / f"{name}_{index:05d}_SF.dat"
-    if not dat_path.exists():
-        print(f"Skipping: File not found {dat_path}.")
-        return
-    data = np.loadtxt(dat_path, skiprows=HEADER_SKIP)
-    qz = data[:, 0]
-    sf = data[:, 1]
-    df = pd.DataFrame({'qz': qz, 'sf': sf})
-    pressure_str = str(pressure) if pressure is not None else 'NA'
-    out_csv = sample_dir / f"{name}_{index}_{pressure_str}_sf.csv"
-    df.to_csv(out_csv, index=False)
-    print(f"Processed {out_csv}.")
+
+def save_fit_nc(sample: str, idx: int, pressure: float, method: str, results: dict, out_dir: Path):
+    """Save raw and fitted curve to NetCDF with parameters in attrs."""
+    q = results["q_data"]
+    ds = xr.Dataset(
+        data_vars=dict(
+            R_data=("q", results["R_data"]),
+            dR_data=("q", results["dR_data"]),
+            R_fit=("q", results["R_fit"]),
+        ),
+        coords=dict(q=("q", q)),
+        attrs={
+            "method": method.upper(),
+            "sample": sample,
+            "index": int(idx),
+            "pressure_mN_per_m": float(pressure),
+            "file": results.get("file", ""),
+            "total_thickness_A": float(results.get("total_thickness", float("nan"))),
+            "tails_thick_A": float(results.get("tails_thick", float("nan"))),
+            "tails_sld": float(results.get("tails_sld", float("nan"))),
+            "heads_thick_A": float(results.get("heads_thick", float("nan"))),
+            "heads_sld": float(results.get("heads_sld", float("nan"))),
+            "heads_vfsolv": float(results.get("heads_vfsolv", float("nan"))),
+            "scale": float(results.get("scale", float("nan"))),
+            "bkg": float(results.get("bkg", float("nan"))),
+            "chi2_red": float(results.get("chi2_red", float("nan"))),
+            "sigma_R_A": float(results.get("sigma_R", float("nan"))),
+            "npts": int(results.get("npts", 0)),
+        },
+    )
+    out_dir.mkdir(parents=True, exist_ok=True)
+    fname = f"{sample}_{idx}_{pressure}_{method.lower()}.nc"
+    path = out_dir / fname
+    ds.to_netcdf(path)
+    print(f"Saved {path}")
+
+
+def save_fit_csv(sample: str, idx: int, pressure: float, method: str, results: dict, out_dir: Path):
+    out_dir.mkdir(parents=True, exist_ok=True)
+    fname = f"{sample}_{idx}_{pressure}_{method.lower()}.csv"
+    path = out_dir / fname
+    row = {
+        "method": method.upper(),
+        "sample": sample,
+        "index": int(idx),
+        "pressure_mN_per_m": float(pressure),
+        "file": results.get("file", ""),
+        "total_thickness_A": float(results.get("total_thickness", float("nan"))),
+        "tails_thick_A": float(results.get("tails_thick", float("nan"))),
+        "tails_sld": float(results.get("tails_sld", float("nan"))),
+        "heads_thick_A": float(results.get("heads_thick", float("nan"))),
+        "heads_sld": float(results.get("heads_sld", float("nan"))),
+        "heads_vfsolv": float(results.get("heads_vfsolv", float("nan"))),
+        "scale": float(results.get("scale", float("nan"))),
+        "bkg": float(results.get("bkg", float("nan"))),
+        "chi2_red": float(results.get("chi2_red", float("nan"))),
+        "sigma_R_A": float(results.get("sigma_R", float("nan"))),
+        "npts": int(results.get("npts", 0)),
+    }
+    pd.DataFrame([row]).to_csv(path, index=False)
+    print(f"Saved {path}")
 
 def main():
     processed_dir = PROCESSED_DIR
     processed_dir.mkdir(parents=True, exist_ok=True)
-    print("Starting GIXOS processing.")
-    for config in DATASET_CONFIGS:
-        name = config['name']
-        indices = config['indices']
-        pressures = config['pressures']
-        for idx, index in enumerate(indices):
-            pressure = pressures[idx] if idx < len(pressures) else None
-            process_sample(DATA_PATH, name, index, pressure, processed_dir)
-    print("GIXOS processing completed.")
+
+    print("Starting GIXOS fitting.")
+
+    # No global aggregation; per-measurement CSVs/NCs only
+
+    for s in SAMPLES:
+        name, indices, pressures = s["name"], s["index"], s["pressure"]
+        print(f"Processing sample {name}...")
+
+        for idx, p in zip(indices, pressures):
+            sf_file = DATA_PATH / name / f"{name}_{idx:05d}_SF.dat"
+            r_file = DATA_PATH / name / f"{name}_{idx:05d}_R.dat"
+
+            if not sf_file.exists() or not r_file.exists():
+                print(f"Skip {name}_{idx}: missing SF or R file")
+                continue
+
+            try:
+                rfxsf_results = fit_rfxsf(
+                    str(sf_file), save_plot=None, show_plot=False, verbose=False, de_maxiter=150
+                )
+                r_results = fit_r(
+                    str(r_file), save_plot=None, show_plot=False, verbose=False, de_maxiter=200
+                )
+
+                # Save intermediate NetCDFs and CSVs per method
+                out_dir = processed_dir / name
+                save_fit_nc(name, idx, p, "rfxsf", rfxsf_results, out_dir)
+                save_fit_csv(name, idx, p, "rfxsf", rfxsf_results, out_dir)
+                save_fit_nc(name, idx, p, "r", r_results, out_dir)
+                save_fit_csv(name, idx, p, "r", r_results, out_dir)
+
+                # all parameters are persisted per-measurement
+            except Exception as e:
+                print(f"Error processing {name}_{idx}: {e}")
+
+    # No summary_results.csv generated; per-measurement CSVs contain full parameters
+
+    print("GIXOS fitting completed.")
 
 if __name__ == '__main__':
     main() 
