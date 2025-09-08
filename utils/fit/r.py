@@ -42,7 +42,9 @@ def estimate_scale(model, q_fit, R_fit):
     R_model_test = model(q_fit)
     q_mid_mask = (q_fit >= 0.08) & (q_fit <= 0.2)
     if q_mid_mask.sum() > 3:
-        scale_est = np.median(R_fit[q_mid_mask] / np.maximum(R_model_test[q_mid_mask], 1e-30))
+        scale_est = np.median(
+            R_fit[q_mid_mask] / np.maximum(R_model_test[q_mid_mask], 1e-30)
+        )
         return np.clip(scale_est, 0.01, 1000)
     return 1.0
 
@@ -51,7 +53,13 @@ def fit_model(obj, verbose=True, maxiter: int = 200):
     fitter = CurveFitter(obj)
     if verbose:
         print("Stage 1: Differential Evolution")
-    fitter.fit("differential_evolution", seed=42, maxiter=maxiter)
+    fitter.fit(
+        "differential_evolution",
+        seed=42,
+        maxiter=maxiter,
+        workers=-1,
+        updating="deferred",
+    )
     for p in obj.varying_parameters():
         if hasattr(p.bounds, "lb") and hasattr(p.bounds, "ub"):
             lo, hi = p.bounds.lb, p.bounds.ub
@@ -65,11 +73,24 @@ def fit_model(obj, verbose=True, maxiter: int = 200):
     return obj.chisqr()
 
 
-def plot_results(q_fit, R_fit, dR_fit, model, chi2_final, npts, nvary, structure, save_path=None, show=True):
+def plot_results(
+    q_fit,
+    R_fit,
+    dR_fit,
+    model,
+    chi2_final,
+    npts,
+    nvary,
+    structure,
+    save_path=None,
+    show=True,
+):
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
     R_final = model(q_fit)
     chi2_red = chi2_final / (npts - nvary)
-    axes[0, 0].errorbar(q_fit, R_fit, yerr=dR_fit, fmt="o", ms=3, alpha=0.7, label="Data")
+    axes[0, 0].errorbar(
+        q_fit, R_fit, yerr=dR_fit, fmt="o", ms=3, alpha=0.7, label="Data"
+    )
     axes[0, 0].plot(q_fit, R_final, "-", color="red", lw=2, label="Best fit")
     axes[0, 0].set_yscale("log")
     axes[0, 0].set_xlabel("q (Å⁻¹)")
@@ -93,7 +114,15 @@ def plot_results(q_fit, R_fit, dR_fit, model, chi2_final, npts, nvary, structure
     axes[1, 0].set_ylabel("SLD (×10⁻⁶ Å⁻²)")
     axes[1, 0].set_title("SLD Profile")
     axes[1, 0].grid(True, alpha=0.3)
-    axes[1, 1].text(0.5, 0.5, "Parameter\nSummary", ha="center", va="center", transform=axes[1, 1].transAxes, fontsize=12)
+    axes[1, 1].text(
+        0.5,
+        0.5,
+        "Parameter\nSummary",
+        ha="center",
+        va="center",
+        transform=axes[1, 1].transAxes,
+        fontsize=12,
+    )
     axes[1, 1].set_title("Results Summary")
     plt.tight_layout()
     if save_path:
@@ -118,9 +147,15 @@ def print_results(obj, model, structure, chi2_final, npts, nvary):
     print("\nMONOLAYER STRUCTURE")
     print("-" * 50)
     print(f"Total thickness:    {total_thickness:.1f} Å")
-    print(f"Tails (alkyl):      {tails_layer.thick.value:.1f} Å, SLD = {tails_layer.sld.real.value:.2f}")
-    print(f"Head (azobenzene):  {head_layer.thick.value:.1f} Å, SLD = {head_layer.sld.real.value:.2f}")
-    avg_roughness = np.mean([layer.rough.value for layer in structure if hasattr(layer.rough, "value")])
+    print(
+        f"Tails (alkyl):      {tails_layer.thick.value:.1f} Å, SLD = {tails_layer.sld.real.value:.2f}"
+    )
+    print(
+        f"Head (azobenzene):  {head_layer.thick.value:.1f} Å, SLD = {head_layer.sld.real.value:.2f}"
+    )
+    avg_roughness = np.mean(
+        [layer.rough.value for layer in structure if hasattr(layer.rough, "value")]
+    )
     print(f"Average roughness:  {avg_roughness:.2f} Å")
     print(f"Scale factor:       {model.scale.value:.3f}")
     print("\nFIT QUALITY")
@@ -183,5 +218,16 @@ def fit_r(r_file, save_plot=None, show_plot=True, verbose=True, de_maxiter: int 
     if verbose:
         print_results(obj, model, structure, chi2_final, npts, nvary)
     if save_plot or show_plot:
-        plot_results(q_fit, R_fit, dR_fit, model, chi2_final, npts, nvary, structure, save_path=save_plot, show=show_plot)
+        plot_results(
+            q_fit,
+            R_fit,
+            dR_fit,
+            model,
+            chi2_final,
+            npts,
+            nvary,
+            structure,
+            save_path=save_plot,
+            show=show_plot,
+        )
     return results

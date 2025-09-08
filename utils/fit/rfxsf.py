@@ -50,7 +50,13 @@ def fit_intrinsic_structure(obj, verbose=True, maxiter: int = 150):
     if verbose:
         print("Fitting intrinsic structure (RF×SF)...")
         print("Stage 1: Global search (Differential Evolution)")
-    fitter.fit("differential_evolution", seed=42, maxiter=maxiter)
+    fitter.fit(
+        "differential_evolution",
+        seed=42,
+        maxiter=maxiter,
+        workers=-1,
+        updating="deferred",
+    )
     for p in obj.varying_parameters():
         if hasattr(p.bounds, "lb") and hasattr(p.bounds, "ub"):
             lo, hi = p.bounds.lb, p.bounds.ub
@@ -64,12 +70,31 @@ def fit_intrinsic_structure(obj, verbose=True, maxiter: int = 150):
     return obj.chisqr()
 
 
-def plot_chen_methodology(q_fit, R_intrinsic, dR_intrinsic, model, structure,
-                          chi2_final, npts, nvary, sigma_R_avg, save_path=None, show=True):
+def plot_chen_methodology(
+    q_fit,
+    R_intrinsic,
+    dR_intrinsic,
+    model,
+    structure,
+    chi2_final,
+    npts,
+    nvary,
+    sigma_R_avg,
+    save_path=None,
+    show=True,
+):
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     R_fit = model(q_fit)
     chi2_red = chi2_final / (npts - nvary)
-    axes[0, 0].errorbar(q_fit, R_intrinsic, yerr=dR_intrinsic, fmt="o", ms=3, alpha=0.7, label="RF×SF (intrinsic)")
+    axes[0, 0].errorbar(
+        q_fit,
+        R_intrinsic,
+        yerr=dR_intrinsic,
+        fmt="o",
+        ms=3,
+        alpha=0.7,
+        label="RF×SF (intrinsic)",
+    )
     axes[0, 0].plot(q_fit, R_fit, "-", color="red", lw=2, label="Fitted model")
     axes[0, 0].set_yscale("log")
     axes[0, 0].set_xlabel("q (Å⁻¹)")
@@ -92,7 +117,15 @@ def plot_chen_methodology(q_fit, R_intrinsic, dR_intrinsic, model, structure,
     axes[1, 0].set_ylabel("SLD (×10⁻⁶ Å⁻²)")
     axes[1, 0].set_title("SLD Profile")
     axes[1, 0].grid(True, alpha=0.3)
-    axes[1, 1].text(0.5, 0.5, "Parameter\nSummary", ha="center", va="center", transform=axes[1, 1].transAxes, fontsize=12)
+    axes[1, 1].text(
+        0.5,
+        0.5,
+        "Parameter\nSummary",
+        ha="center",
+        va="center",
+        transform=axes[1, 1].transAxes,
+        fontsize=12,
+    )
     axes[1, 1].set_title("Results Summary")
     plt.tight_layout()
     if save_path:
@@ -117,9 +150,15 @@ def print_chen_results(obj, model, structure, chi2_final, npts, nvary, sigma_R_a
     print("\nMONOLAYER STRUCTURE (Intrinsic)")
     print("-" * 50)
     print(f"Total thickness:    {total_thickness:.1f} Å")
-    print(f"Tails (alkyl):      {tails_layer.thick.value:.1f} Å, SLD = {tails_layer.sld.real.value:.2f}")
-    print(f"Head (azobenzene):  {head_layer.thick.value:.1f} Å, SLD = {head_layer.sld.real.value:.2f}")
-    avg_intrinsic_rough = np.mean([layer.rough.value for layer in structure if hasattr(layer.rough, "value")])
+    print(
+        f"Tails (alkyl):      {tails_layer.thick.value:.1f} Å, SLD = {tails_layer.sld.real.value:.2f}"
+    )
+    print(
+        f"Head (azobenzene):  {head_layer.thick.value:.1f} Å, SLD = {head_layer.sld.real.value:.2f}"
+    )
+    avg_intrinsic_rough = np.mean(
+        [layer.rough.value for layer in structure if hasattr(layer.rough, "value")]
+    )
     print(f"Intrinsic roughness: {avg_intrinsic_rough:.2f} Å (interfacial width)")
     print(f"Thermal roughness:   {sigma_R_avg:.2f} Å (capillary waves)")
     print(f"Scale factor:        {model.scale.value:.3f}")
@@ -133,7 +172,9 @@ def print_chen_results(obj, model, structure, chi2_final, npts, nvary, sigma_R_a
         print("⚠️ ACCEPTABLE - some systematic deviations")
     else:
         print("❌ POOR fit - check model or data")
-    print("\nNOTE: This represents the intrinsic chemical structure\nwithout thermal roughness broadening (capillary waves).")
+    print(
+        "\nNOTE: This represents the intrinsic chemical structure\nwithout thermal roughness broadening (capillary waves)."
+    )
 
 
 def load_data_from_file(sf_file):
@@ -146,13 +187,17 @@ def load_data_from_file(sf_file):
     return q_sf, SF, dSF, dq_sf, sigma_R
 
 
-def fit_rfxsf(sf_file, save_plot=None, show_plot=True, verbose=True, de_maxiter: int = 150):
+def fit_rfxsf(
+    sf_file, save_plot=None, show_plot=True, verbose=True, de_maxiter: int = 150
+):
     if verbose:
         print("=" * 60)
         print("RFXSF (Chen Shen methodology)")
         print("=" * 60)
     q_sf, SF, dSF, dq_sf, sigma_R = load_data_from_file(sf_file)
-    q_fit, R_intrinsic, dR_intrinsic, dq_fit = create_intrinsic_data(q_sf, SF, dSF, dq_sf)
+    q_fit, R_intrinsic, dR_intrinsic, dq_fit = create_intrinsic_data(
+        q_sf, SF, dSF, dq_sf
+    )
     if verbose:
         print(f"File: {sf_file}")
         print(f"Using {len(q_fit)} of {len(q_sf)} data points")
@@ -164,7 +209,9 @@ def fit_rfxsf(sf_file, save_plot=None, show_plot=True, verbose=True, de_maxiter:
     R_model_test = model(q_fit)
     q_mid = (q_fit >= 0.08) & (q_fit <= 0.3)
     if q_mid.sum() > 5:
-        scale_est = np.median(R_intrinsic[q_mid] / np.maximum(R_model_test[q_mid], 1e-30))
+        scale_est = np.median(
+            R_intrinsic[q_mid] / np.maximum(R_model_test[q_mid], 1e-30)
+        )
         scale_est = np.clip(scale_est, 0.01, 100)
     else:
         scale_est = 1.0
