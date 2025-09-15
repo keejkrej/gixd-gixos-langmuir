@@ -2,8 +2,7 @@ from pathlib import Path
 import os
 import pandas as pd
 import xarray as xr
-from utils.fit.rfxsf import fit_rfxsf
-from utils.fit.r import fit_r
+from utils.fit.gixos import fit_rfxsf, fit_r
 from data_gixos import SAMPLES, Sample
 
 
