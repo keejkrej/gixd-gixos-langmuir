@@ -11,7 +11,7 @@ def detect_peaks_median(data, coords, window_size, sigma_threshold):
     data : array-like
         The intensity data
     coords : array-like
-        The coordinate values (q or theta)
+        The coordinate values (q or tau)
     window_size : int
         Size of the median filter window (must be odd)
     sigma_threshold : float

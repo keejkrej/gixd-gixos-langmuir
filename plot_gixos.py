@@ -34,7 +34,15 @@ def create_pressure_plots(df: pd.DataFrame | None, output_dir: Path):
             color = colors[name]
             pressures = grp["Pressure_mN_per_m"].values
             if total_col in grp:
-                ax.plot(pressures, grp[total_col].values, "-o", color=color, linewidth=2, markersize=5, label=name)
+                ax.plot(
+                    pressures,
+                    grp[total_col].values,
+                    "-o",
+                    color=color,
+                    linewidth=2,
+                    markersize=5,
+                    label=name,
+                )
         ax.set_xlabel("Surface Pressure (mN/m)")
         ax.set_ylabel("Total Thickness (Å)")
         ax.set_title(f"{method}: Total Thickness vs Pressure")
@@ -48,7 +56,15 @@ def create_pressure_plots(df: pd.DataFrame | None, output_dir: Path):
             pressures = grp["Pressure_mN_per_m"].values
             if vf_col in grp:
                 head_group_frac = 1.0 - grp[vf_col].values
-                ax.plot(pressures, head_group_frac, "-o", color=color, linewidth=2, markersize=5, label=name)
+                ax.plot(
+                    pressures,
+                    head_group_frac,
+                    "-o",
+                    color=color,
+                    linewidth=2,
+                    markersize=5,
+                    label=name,
+                )
         ax.set_xlabel("Surface Pressure (mN/m)")
         ax.set_ylabel("Head Group Fraction (1 - vfsolv)")
         ax.set_title(f"{method}: Head Group Fraction vs Pressure")
@@ -62,7 +78,13 @@ def create_pressure_plots(df: pd.DataFrame | None, output_dir: Path):
 
     # Separate figures for R and RFXSF showing total thickness and (1 - vfsolv)
     make_fig("R", "R_Total_A", "R_Head_VF", "R_Chi2", "pressure_analysis_R.png")
-    make_fig("RFXSF", "RFXSF_Total_A", "RFXSF_Head_VF", "RFXSF_Chi2", "pressure_analysis_RFXSF.png")
+    make_fig(
+        "RFXSF",
+        "RFXSF_Total_A",
+        "RFXSF_Head_VF",
+        "RFXSF_Chi2",
+        "pressure_analysis_RFXSF.png",
+    )
 
 
 def _collect_nc_pairs(processed_dir: Path):
@@ -70,7 +92,9 @@ def _collect_nc_pairs(processed_dir: Path):
     for sample_dir in sorted(p for p in processed_dir.iterdir() if p.is_dir()):
         sample = sample_dir.name
         for nc_path in sorted(sample_dir.glob(f"{sample}_*_*.nc")):
-            m = re.search(rf"{re.escape(sample)}_(\d+)_([\-\d\.]+)_(rfxsf|r)\.nc$", nc_path.name)
+            m = re.search(
+                rf"{re.escape(sample)}_(\d+)_([\-\d\.]+)_(rfxsf|r)\.nc$", nc_path.name
+            )
             if not m:
                 continue
             idx = int(m.group(1))
@@ -82,8 +106,6 @@ def _collect_nc_pairs(processed_dir: Path):
             key = (sample, idx, pressure)
             pairs.setdefault(key, {})[method] = nc_path
     return pairs
-
-
 
 
 def create_sample_overlays(processed_dir: Path, plot_dir: Path):
@@ -127,7 +149,7 @@ def create_sample_overlays(processed_dir: Path, plot_dir: Path):
                     q, r, yerr=dr, fmt="o", ms=2.5, alpha=0.5, color=color, label=None
                 )
                 # Fit line
-                ax.plot(q, rfit, "-", lw=2, color=color, label=f"p={pressure} mN/m")
+                ax.plot(q, rfit, "-", lw=2, color=color, label=f"p={pressure}[mN/m]")
 
             ax.set_yscale("log")
             ax.set_xlabel("qz (Å⁻¹)")
@@ -140,8 +162,6 @@ def create_sample_overlays(processed_dir: Path, plot_dir: Path):
             plt.savefig(out_path, dpi=300, bbox_inches="tight")
             plt.close(fig)
             print(f"Saved {out_path}")
-
-
 
 
 def create_sample_method_panels(processed_dir: Path, plot_dir: Path):
@@ -166,7 +186,9 @@ def create_sample_method_panels(processed_dir: Path, plot_dir: Path):
         ncols = 2 if n <= 6 else 3
         nrows = int(np.ceil(n / ncols))
 
-        fig, axes = plt.subplots(nrows, ncols, figsize=(6 * ncols, 4.5 * nrows), squeeze=False)
+        fig, axes = plt.subplots(
+            nrows, ncols, figsize=(6 * ncols, 4.5 * nrows), squeeze=False
+        )
         ax_list = axes.ravel()
         for ax in ax_list[n:]:
             ax.set_axis_off()
@@ -186,11 +208,12 @@ def create_sample_method_panels(processed_dir: Path, plot_dir: Path):
             ax.set_xlabel("qz (Å⁻¹)")
             ax.set_ylabel("RF×SF" if method == "rfxsf" else "Reflectivity")
             ax.grid(True, alpha=0.3)
-            ax.set_title(f"p={pressure} mN/m (idx {idx})")
+            ax.set_title(f"p={pressure}[mN/m] (idx {idx})")
             # Annotation box from per-measurement CSV (if available), otherwise attrs
             csv_path = Path(str(path).replace(".nc", ".csv"))
             if csv_path.exists():
                 import pandas as _pd
+
                 row = _pd.read_csv(csv_path).iloc[0].to_dict()
                 exclude = {"sample", "method", "index", "pressure_mN_per_m", "file"}
                 lines = []
@@ -205,8 +228,16 @@ def create_sample_method_panels(processed_dir: Path, plot_dir: Path):
             else:
                 t_tot = ds.attrs.get("total_thickness_A", np.nan)
                 txt = f"chi2_red={chi:.3f}\n tails_thick_A={ds.attrs.get('tails_thick_A', np.nan):.3f}\n heads_vfsolv={ds.attrs.get('heads_vfsolv', np.nan):.3f}"
-            ax.text(0.98, 0.02, txt, transform=ax.transAxes, ha="right", va="bottom",
-                    fontsize=9, bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.7", alpha=0.8))
+            ax.text(
+                0.98,
+                0.02,
+                txt,
+                transform=ax.transAxes,
+                ha="right",
+                va="bottom",
+                fontsize=9,
+                bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.7", alpha=0.8),
+            )
 
         plt.suptitle(f"{sample} — {method.upper()} data & fit", y=0.995)
         plt.tight_layout(rect=[0, 0, 1, 0.97])
@@ -218,14 +249,14 @@ def create_sample_method_panels(processed_dir: Path, plot_dir: Path):
         print(f"Saved {out_path}")
 
 
-
-
 def build_summary_from_measurements(processed_dir: Path) -> pd.DataFrame | None:
     rows = []
     for sample_dir in sorted(p for p in processed_dir.iterdir() if p.is_dir()):
         sample = sample_dir.name
         for csv_path in sample_dir.glob(f"{sample}_*_*.csv"):
-            m = re.search(rf"{re.escape(sample)}_(\d+)_([\-\d\.]+)_(rfxsf|r)\.csv$", csv_path.name)
+            m = re.search(
+                rf"{re.escape(sample)}_(\d+)_([\-\d\.]+)_(rfxsf|r)\.csv$", csv_path.name
+            )
             if not m:
                 continue
             idx = int(m.group(1))

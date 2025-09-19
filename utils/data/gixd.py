@@ -17,37 +17,37 @@ def load_gixd_xarray(data_path, name, index):
     )
 
 
-def gixd_cartesian2polar(da_cart, dr, dtheta):
-    intensity_polar, q, theta = cartesian2polar(
-        da_cart.values, da_cart["qxy"].values, da_cart["qz"].values, dr, dtheta
+def gixd_cartesian2polar(da_cart, dr, dtau):
+    intensity_polar, q, tau = cartesian2polar(
+        da_cart.values, da_cart["qxy"].values, da_cart["qz"].values, dr, dtau
     )
     return xr.DataArray(
         intensity_polar,
-        dims=("theta", "q"),
-        coords={"theta": np.rad2deg(theta), "q": q},
+        dims=("tau", "q"),
+        coords={"tau": np.rad2deg(tau), "q": q},
         name="intensity_polar",
     )
 
 
-def extract_intensity_q(da_polar, q_range=None, theta_range=None, method="mean"):
+def extract_intensity_q(da_polar, q_range=None, tau_range=None, method="mean"):
     da = da_polar
     if q_range:
         da = da.sel(q=slice(q_range[0], q_range[1]))
-    if theta_range:
-        da = da.sel(theta=slice(theta_range[0], theta_range[1]))
+    if tau_range:
+        da = da.sel(tau=slice(tau_range[0], tau_range[1]))
     if method == "mean":
-        return da.mean(dim="theta")
+        return da.mean(dim="tau")
     if method == "sum":
-        return da.sum(dim="theta")
+        return da.sum(dim="tau")
     raise ValueError("method must be 'mean' or 'sum'")
 
 
-def extract_intensity_theta(da_polar, q_range=None, theta_range=None, method="mean"):
+def extract_intensity_tau(da_polar, q_range=None, tau_range=None, method="mean"):
     da = da_polar
     if q_range:
         da = da.sel(q=slice(q_range[0], q_range[1]))
-    if theta_range:
-        da = da.sel(theta=slice(theta_range[0], theta_range[1]))
+    if tau_range:
+        da = da.sel(tau=slice(tau_range[0], tau_range[1]))
     if method == "mean":
         return da.mean(dim="q")
     if method == "sum":
