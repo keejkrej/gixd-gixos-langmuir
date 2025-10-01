@@ -1,4 +1,6 @@
 from pathlib import Path
+from typing import Optional
+
 from utils.data.gixd import (
     load_gixd_xarray,
     gixd_cartesian2polar,
@@ -7,21 +9,28 @@ from utils.data.gixd import (
     remove_peaks_from_1d,
 )
 import xarray as xr
-from data_gixd import Sample, SAMPLES, WATER, ROI_IQ, ROI_ITAU
+from data_gixd import Sample, get_samples, WATER, ROI_IQ, ROI_ITAU
 
 DATA_DIR = "data/gixd"
 PROCESSED_DIR = "processed/gixd"
+SUBTRACT_WATER = True
+TEST = False
 
 
 def process_sample(
-    data_dir: Path, processed_dir: Path, data: Sample, da_water: xr.DataArray
+    data_dir: Path,
+    processed_dir: Path,
+    data: Sample,
+    da_water: Optional[xr.DataArray] = None,
 ):
     name, index, pressure = data["name"], data["index"], data["pressure"]
     (processed_dir / name).mkdir(parents=True, exist_ok=True)
 
     print(f"Processing {name}...")
     for i, p in zip(index, pressure):
-        da_cart = load_gixd_xarray(data_dir, name, i) - da_water
+        da_cart = load_gixd_xarray(data_dir, name, i)
+        if da_water is not None:
+            da_cart -= da_water
         da_cart.to_netcdf(processed_dir / name / f"{name}_{i}_{p}_cartesian.nc")
 
         da_polar = gixd_cartesian2polar(da_cart, dr=0.005, dtau=0.005)
@@ -136,10 +145,12 @@ def main():
     processed_dir = Path(PROCESSED_DIR)
     processed_dir.mkdir(parents=True, exist_ok=True)
 
-    # Process water reference first
-    da_water = process_water_reference(Path(DATA_DIR), processed_dir, WATER)
+    da_water = None
+    if SUBTRACT_WATER:
+        # Process water reference first
+        da_water = process_water_reference(Path(DATA_DIR), processed_dir, WATER)
 
-    for s in SAMPLES:
+    for s in get_samples(TEST):
         process_sample(Path(DATA_DIR), processed_dir, s, da_water)
     print("GIXD processing completed.")
 

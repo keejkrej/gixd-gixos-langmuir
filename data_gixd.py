@@ -16,6 +16,23 @@ SAMPLES: list[Sample] = [
     {"name": "dopc", "index": [16, 12, 20, 24], "pressure": [0.1, 10, 20, 30]},
     {"name": "redazo", "index": [128, 132, 136, 140], "pressure": [0.1, 10, 20, 30]},
 ]
+SAMPLES_TEST: list[Sample] = [
+    {"name": "azotrans", "index": [54], "pressure": [10]},
+]
+
+
+def get_samples(test: bool = False) -> list[Sample]:
+    """
+    Returns a list of samples to process.
+
+    Args:
+        test: If True, returns a single sample for testing.
+
+    Returns:
+        A list of samples.
+    """
+    return SAMPLES_TEST if test else SAMPLES
+
 
 ROI_IQ = [0.7, 2.0, 0, 10]  # [q_min, q_max, tau_min, tau_max]
 ROI_ITAU = [1.25, 1.5, 0, 50]  # [q_min, q_max, tau_min, tau_max]

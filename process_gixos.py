@@ -3,11 +3,12 @@ import os
 import pandas as pd
 import xarray as xr
 from utils.fit.gixos import fit_rfxsf, fit_r
-from data_gixos import SAMPLES, Sample
+from data_gixos import get_samples, Sample
 
 
 DATA_PATH = Path("./data/gixos")
 PROCESSED_DIR = Path("processed/gixos")
+TEST = False
 
 
 def save_fit_nc(sample: str, idx: int, pressure: float, method: str, results: dict, out_dir: Path):
@@ -79,7 +80,7 @@ def main():
 
     # No global aggregation; per-measurement CSVs/NCs only
 
-    for s in SAMPLES:
+    for s in get_samples(TEST):
         name, indices, pressures = s["name"], s["index"], s["pressure"]
         print(f"Processing sample {name}...")
 

@@ -18,4 +18,20 @@ SAMPLES: list[Sample] = [
     {"name": "dopc", "index": [10, 15, 19, 23], "pressure": [0.1, 10, 20, 30]},
     {"name": "redazo", "index": [127, 131, 135, 139], "pressure": [0.1, 10, 20, 30]},
 ]
+SAMPLES_TEST: list[Sample] = [
+    {"name": "azotrans", "index": [49], "pressure": [0.5]},
+]
+
+
+def get_samples(test: bool = False) -> list[Sample]:
+    """
+    Returns a list of samples to process.
+
+    Args:
+        test: If True, returns a single sample for testing.
+
+    Returns:
+        A list of samples.
+    """
+    return SAMPLES_TEST if test else SAMPLES
 
