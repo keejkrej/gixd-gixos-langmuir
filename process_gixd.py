@@ -13,8 +13,12 @@ from data_gixd import Sample, get_samples, WATER, ROI_IQ, ROI_ITAU
 
 DATA_DIR = "data/gixd"
 PROCESSED_DIR = "processed/gixd"
-SUBTRACT_WATER = True
+SUBTRACT_WATER = False
 TEST = False
+QZ_CUTOFF = 0.04
+QZ_BIN = 20  # channels
+Q_BIN = 0.05
+TAU_BIN = 0.0872665
 
 
 def process_sample(
@@ -29,33 +33,38 @@ def process_sample(
     print(f"Processing {name}...")
     for i, p in zip(index, pressure):
         da_cart = load_gixd_xarray(data_dir, name, i)
-        if da_water is not None:
-            da_cart -= da_water
-        da_cart.to_netcdf(processed_dir / name / f"{name}_{i}_{p}_cartesian.nc")
 
-        da_polar = gixd_cartesian2polar(da_cart, dr=0.005, dtau=0.005)
+        if SUBTRACT_WATER:
+            da_cart = da_cart - da_water
+
+        da_cart = da_cart.sel(qz=slice(QZ_CUTOFF, None))
+        da_cart_bin = da_cart.coarsen(qz=QZ_BIN, boundary="trim").mean()
+        da_cart_bin.to_netcdf(processed_dir / name / f"{name}_{i}_{p}_cartesian.nc")
+
+        da_polar = gixd_cartesian2polar(da_cart, dq=Q_BIN, dtau=TAU_BIN)
         da_polar.to_netcdf(processed_dir / name / f"{name}_{i}_{p}_polar.nc")
 
         intensity_q = extract_intensity_q(
             da_polar, q_range=(ROI_IQ[0], ROI_IQ[1]), tau_range=(ROI_IQ[2], ROI_IQ[3])
         )
         # Remove peaks from I(q) profile
-        intensity_q_no_peaks, q_coords_filtered = remove_peaks_from_1d(
-            intensity_q.values,
-            intensity_q.q.values,
-            window_size=21,
-            sigma_threshold=2.0,
-            exclusion_radius=0.025,
-        )
-        intensity_q_clean = xr.DataArray(
-            intensity_q_no_peaks,
-            dims=["q"],
-            coords={"q": q_coords_filtered},
-            name="intensity_q",
-        )
-        intensity_q_clean.to_netcdf(
-            processed_dir / name / f"{name}_{i}_{p}_intensity_q.nc"
-        )
+        # intensity_q_no_peaks, q_coords_filtered = remove_peaks_from_1d(
+        #     intensity_q.values,
+        #     intensity_q.q.values,
+        #     window_size=21,
+        #     sigma_threshold=2.0,
+        #     exclusion_radius=0.025,
+        # )
+        # intensity_q_clean = xr.DataArray(
+        #     intensity_q_no_peaks,
+        #     dims=["q"],
+        #     coords={"q": q_coords_filtered},
+        #     name="intensity_q",
+        # )
+        # intensity_q_clean.to_netcdf(
+        #     processed_dir / name / f"{name}_{i}_{p}_intensity_q.nc"
+        # )
+        intensity_q.to_netcdf(processed_dir / name / f"{name}_{i}_{p}_intensity_q.nc")
 
         intensity_tau = extract_intensity_tau(
             da_polar,
@@ -63,20 +72,23 @@ def process_sample(
             tau_range=(ROI_ITAU[2], ROI_ITAU[3]),
         )
         # Remove peaks from I(tau) profile
-        intensity_tau_no_peaks, tau_coords_filtered = remove_peaks_from_1d(
-            intensity_tau.values,
-            intensity_tau.tau.values,
-            window_size=21,
-            sigma_threshold=2.0,
-            exclusion_radius=2,
-        )
-        intensity_tau_clean = xr.DataArray(
-            intensity_tau_no_peaks,
-            dims=["tau"],
-            coords={"tau": tau_coords_filtered},
-            name="intensity_tau",
-        )
-        intensity_tau_clean.to_netcdf(
+        # intensity_tau_no_peaks, tau_coords_filtered = remove_peaks_from_1d(
+        #     intensity_tau.values,
+        #     intensity_tau.tau.values,
+        #     window_size=21,
+        #     sigma_threshold=2.0,
+        #     exclusion_radius=2,
+        # )
+        # intensity_tau_clean = xr.DataArray(
+        #     intensity_tau_no_peaks,
+        #     dims=["tau"],
+        #     coords={"tau": tau_coords_filtered},
+        #     name="intensity_tau",
+        # )
+        # intensity_tau_clean.to_netcdf(
+        #     processed_dir / name / f"{name}_{i}_{p}_intensity_tau.nc"
+        # )
+        intensity_tau.to_netcdf(
             processed_dir / name / f"{name}_{i}_{p}_intensity_tau.nc"
         )
 
@@ -91,10 +103,11 @@ def process_water_reference(data_dir: Path, processed_dir: Path, water_data: Sam
 
     # Load water data
     da_cart = load_gixd_xarray(data_dir, name, index)
+    da_cart = da_cart.sel(qz=slice(QZ_CUTOFF, None))
     da_cart.to_netcdf(water_dir / f"{name}_{index}_cartesian.nc")
 
     # Convert to polar coordinates
-    da_polar = gixd_cartesian2polar(da_cart, dr=0.005, dtau=0.005)
+    da_polar = gixd_cartesian2polar(da_cart, dq=Q_BIN, dtau=TAU_BIN)
     da_polar.to_netcdf(water_dir / f"{name}_{index}_polar.nc")
 
     # Extract intensity profiles
@@ -102,20 +115,21 @@ def process_water_reference(data_dir: Path, processed_dir: Path, water_data: Sam
         da_polar, q_range=(ROI_IQ[0], ROI_IQ[1]), tau_range=(ROI_IQ[2], ROI_IQ[3])
     )
     # Remove peaks from I(q) profile
-    intensity_q_no_peaks, q_coords_filtered = remove_peaks_from_1d(
-        intensity_q.values,
-        intensity_q.q.values,
-        window_size=21,
-        sigma_threshold=2.0,
-        exclusion_radius=0.025,
-    )
-    intensity_q_clean = xr.DataArray(
-        intensity_q_no_peaks,
-        dims=["q"],
-        coords={"q": q_coords_filtered},
-        name="intensity_q",
-    )
-    intensity_q_clean.to_netcdf(water_dir / f"{name}_{index}_intensity_q.nc")
+    # intensity_q_no_peaks, q_coords_filtered = remove_peaks_from_1d(
+    #     intensity_q.values,
+    #     intensity_q.q.values,
+    #     window_size=21,
+    #     sigma_threshold=2.0,
+    #     exclusion_radius=0.025,
+    # )
+    # intensity_q_clean = xr.DataArray(
+    #     intensity_q_no_peaks,
+    #     dims=["q"],
+    #     coords={"q": q_coords_filtered},
+    #     name="intensity_q",
+    # )
+    # intensity_q_clean.to_netcdf(water_dir / f"{name}_{index}_intensity_q.nc")
+    intensity_q.to_netcdf(water_dir / f"{name}_{index}_intensity_q.nc")
 
     intensity_tau = extract_intensity_tau(
         da_polar,
@@ -123,20 +137,21 @@ def process_water_reference(data_dir: Path, processed_dir: Path, water_data: Sam
         tau_range=(ROI_ITAU[2], ROI_ITAU[3]),
     )
     # Remove peaks from I(tau) profile
-    intensity_tau_no_peaks, tau_coords_filtered = remove_peaks_from_1d(
-        intensity_tau.values,
-        intensity_tau.tau.values,
-        window_size=21,
-        sigma_threshold=2.0,
-        exclusion_radius=2,
-    )
-    intensity_tau_clean = xr.DataArray(
-        intensity_tau_no_peaks,
-        dims=["tau"],
-        coords={"tau": tau_coords_filtered},
-        name="intensity_tau",
-    )
-    intensity_tau_clean.to_netcdf(water_dir / f"{name}_{index}_intensity_tau.nc")
+    # intensity_tau_no_peaks, tau_coords_filtered = remove_peaks_from_1d(
+    #     intensity_tau.values,
+    #     intensity_tau.tau.values,
+    #     window_size=21,
+    #     sigma_threshold=2.0,
+    #     exclusion_radius=2,
+    # )
+    # intensity_tau_clean = xr.DataArray(
+    #     intensity_tau_no_peaks,
+    #     dims=["tau"],
+    #     coords={"tau": tau_coords_filtered},
+    #     name="intensity_tau",
+    # )
+    # intensity_tau_clean.to_netcdf(water_dir / f"{name}_{index}_intensity_tau.nc")
+    intensity_tau.to_netcdf(water_dir / f"{name}_{index}_intensity_tau.nc")
 
     return da_cart
 
@@ -146,9 +161,7 @@ def main():
     processed_dir.mkdir(parents=True, exist_ok=True)
 
     da_water = None
-    if SUBTRACT_WATER:
-        # Process water reference first
-        da_water = process_water_reference(Path(DATA_DIR), processed_dir, WATER)
+    da_water = process_water_reference(Path(DATA_DIR), processed_dir, WATER)
 
     for s in get_samples(TEST):
         process_sample(Path(DATA_DIR), processed_dir, s, da_water)

@@ -21,13 +21,13 @@ def rebin(
     )
     I = np.divide(I_hist, n_hist, out=np.zeros_like(I_hist), where=n_hist != 0)
     I = np.transpose(I, (1, 0))
-    return I, u_[:-1], v_[:-1]
+    return I, u_[:-1] + du / 2, v_[:-1] + dv / 2
 
 
-def cartesian2polar(I, x, y, dr, dtau):
+def cartesian2polar(I, x, y, dr, dtheta):
     def f(x, y):
         r = np.sqrt(x**2 + y**2)
-        tau = np.arctan2(y, x)
-        return r, tau
+        theta = np.arctan2(y, x)
+        return r, theta
 
-    return rebin(f, I, x, y, dr, dtau)
+    return rebin(f, I, x, y, dr, dtheta)

@@ -5,8 +5,9 @@ import matplotlib.patches as patches
 import numpy as np
 import glob
 import re
-from scipy.ndimage import median_filter
-from utils.math.com import exponential_weighted_center
+
+# from scipy.ndimage import median_filter
+# from utils.math.com import exponential_weighted_center
 from data_gixd import ROI_IQ, ROI_ITAU
 
 
@@ -70,7 +71,7 @@ def plot_1d_profiles(sample_dir, plot_path, is_water=False):
             q_values = da["q"].values
 
             # Apply median filter for smoothing
-            smoothed_intensity = median_filter(intensity, size=21)
+            # smoothed_intensity = median_filter(intensity, size=21)
 
             label = f"idx={idx}, p={pressure}[mN/m]"
 
@@ -79,18 +80,18 @@ def plot_1d_profiles(sample_dir, plot_path, is_water=False):
                 q_values,
                 intensity,
                 "k-",
-                alpha=0.5,
-                linewidth=0.5,
+                linewidth=2,
                 label=f"{label} (raw)",
             )
             # Plot smoothed data
-            ax_q.plot(
-                q_values,
-                smoothed_intensity,
-                f"C{i}",
-                linewidth=2,
-                label=f"{label} (smoothed)",
-            )
+            # ax_q.plot(
+            #     q_values,
+            #     smoothed_intensity,
+            #     f"C{i}",
+            #     linewidth=2,
+            #     label=f"{label} (smoothed)",
+            # )
+            tau_max_data[pressure] = np.argmax(intensity)
 
         ax_q.set_xlabel("q (A$^{-1}$)")
         ax_q.set_ylabel("Intensity (a.u.)")
@@ -119,7 +120,7 @@ def plot_1d_profiles(sample_dir, plot_path, is_water=False):
             tau_values = da["tau"].values
 
             # Apply median filter for smoothing
-            smoothed_intensity = median_filter(intensity, size=21)
+            # smoothed_intensity = median_filter(intensity, size=21)
 
             label = f"idx={idx}, p={pressure}[mN/m]"
 
@@ -128,34 +129,34 @@ def plot_1d_profiles(sample_dir, plot_path, is_water=False):
                 tau_values,
                 intensity,
                 "k-",
-                alpha=0.5,
-                linewidth=0.5,
+                linewidth=2,
                 label=f"{label} (raw)",
             )
             # Plot smoothed data
-            ax_tau.plot(
-                tau_values,
-                smoothed_intensity,
-                f"C{i}",
-                linewidth=2,
-                label=f"{label} (smoothed)",
-            )
+            # ax_tau.plot(
+            #     tau_values,
+            #     smoothed_intensity,
+            #     f"C{i}",
+            #     linewidth=2,
+            #     label=f"{label} (smoothed)",
+            # )
+            tau_max_data[pressure] = np.argmax(intensity)
 
-            # Calculate exponentially weighted center on smoothed median filter results
-            if len(smoothed_intensity) > 0:
-                tau_center = exponential_weighted_center(
-                    smoothed_intensity, tau_values, temperature=0.1
-                )
+            # # Calculate exponentially weighted center on smoothed median filter results
+            # if len(smoothed_intensity) > 0:
+            #     tau_center = exponential_weighted_center(
+            #         smoothed_intensity, tau_values, temperature=0.1
+            #     )
 
-                ax_tau.plot(
-                    tau_center,
-                    smoothed_intensity[np.argmin(np.abs(tau_values - tau_center))],
-                    "rx",
-                    markersize=20,
-                    markeredgewidth=4,
-                )
-                # Store tau_center vs pressure
-                tau_max_data[pressure] = tau_center
+            #     ax_tau.plot(
+            #         tau_center,
+            #         smoothed_intensity[np.argmin(np.abs(tau_values - tau_center))],
+            #         "rx",
+            #         markersize=20,
+            #         markeredgewidth=4,
+            #     )
+            #     # Store tau_center vs pressure
+            #     tau_max_data[pressure] = tau_center
 
         ax_tau.set_xlabel("tau (deg)")
         ax_tau.set_ylabel("Intensity (a.u.)")
@@ -174,7 +175,8 @@ def plot_2d_maps(sample_dir, plot_path, is_water=False):
     sample_name = sample_dir.name
     cart_files = sorted(glob.glob(str(sample_dir / f"{sample_name}_*_*_cartesian.nc")))
 
-    vmax = None if is_water else 10
+    # vmax = None if is_water else 10
+    vmax = None
     # Handle water case (single file)
     if is_water and not cart_files:
         cart_files = sorted(

@@ -1,5 +1,4 @@
 from pathlib import Path
-import os
 import pandas as pd
 import xarray as xr
 from utils.fit.gixos import fit_rfxsf, fit_r
@@ -8,10 +7,12 @@ from data_gixos import get_samples, Sample
 
 DATA_PATH = Path("./data/gixos")
 PROCESSED_DIR = Path("processed/gixos")
-TEST = False
+TEST = True
 
 
-def save_fit_nc(sample: str, idx: int, pressure: float, method: str, results: dict, out_dir: Path):
+def save_fit_nc(
+    sample: str, idx: int, pressure: float, method: str, results: dict, out_dir: Path
+):
     """Save raw and fitted curve to NetCDF with parameters in attrs."""
     q = results["q_data"]
     ds = xr.Dataset(
@@ -47,7 +48,9 @@ def save_fit_nc(sample: str, idx: int, pressure: float, method: str, results: di
     print(f"Saved {path}")
 
 
-def save_fit_csv(sample: str, idx: int, pressure: float, method: str, results: dict, out_dir: Path):
+def save_fit_csv(
+    sample: str, idx: int, pressure: float, method: str, results: dict, out_dir: Path
+):
     out_dir.mkdir(parents=True, exist_ok=True)
     fname = f"{sample}_{idx}_{pressure}_{method.lower()}.csv"
     path = out_dir / fname
@@ -72,6 +75,7 @@ def save_fit_csv(sample: str, idx: int, pressure: float, method: str, results: d
     pd.DataFrame([row]).to_csv(path, index=False)
     print(f"Saved {path}")
 
+
 def main():
     processed_dir = PROCESSED_DIR
     processed_dir.mkdir(parents=True, exist_ok=True)
@@ -94,10 +98,18 @@ def main():
 
             try:
                 rfxsf_results = fit_rfxsf(
-                    str(sf_file), save_plot=None, show_plot=False, verbose=False, de_maxiter=150
+                    str(sf_file),
+                    save_plot=None,
+                    show_plot=False,
+                    verbose=False,
+                    de_maxiter=150,
                 )
                 r_results = fit_r(
-                    str(r_file), save_plot=None, show_plot=False, verbose=False, de_maxiter=200
+                    str(r_file),
+                    save_plot=None,
+                    show_plot=False,
+                    verbose=False,
+                    de_maxiter=200,
                 )
 
                 # Save intermediate NetCDFs and CSVs per method
@@ -115,5 +127,6 @@ def main():
 
     print("GIXOS fitting completed.")
 
-if __name__ == '__main__':
-    main() 
+
+if __name__ == "__main__":
+    main()

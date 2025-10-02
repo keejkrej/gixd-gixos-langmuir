@@ -17,9 +17,9 @@ def load_gixd_xarray(data_path, name, index):
     )
 
 
-def gixd_cartesian2polar(da_cart, dr, dtau):
+def gixd_cartesian2polar(da_cart, dq, dtau):
     intensity_polar, q, tau = cartesian2polar(
-        da_cart.values, da_cart["qxy"].values, da_cart["qz"].values, dr, dtau
+        da_cart.values, da_cart["qxy"].values, da_cart["qz"].values, dq, dtau
     )
     return xr.DataArray(
         intensity_polar,
