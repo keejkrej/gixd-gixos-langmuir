@@ -13,6 +13,7 @@ from data_gixd import Sample, get_samples, WATER, ROI_IQ, ROI_ITAU
 DATA_DIR = "data/gixd"
 PROCESSED_DIR = "processed/gixd"
 SUBTRACT_WATER = False
+SUBTRACT_INVQUAD = False
 IS_TEST = False
 QZ_CUTOFF = 0.04
 QZ_BIN = 20  # channels
