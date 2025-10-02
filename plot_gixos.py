@@ -226,7 +226,6 @@ def create_sample_method_panels(processed_dir: Path, plot_dir: Path):
                         lines.append(f"{k2}={v}")
                 txt = "\n".join(lines)
             else:
-                t_tot = ds.attrs.get("total_thickness_A", np.nan)
                 txt = f"chi2_red={chi:.3f}\n tails_thick_A={ds.attrs.get('tails_thick_A', np.nan):.3f}\n heads_vfsolv={ds.attrs.get('heads_vfsolv', np.nan):.3f}"
             ax.text(
                 0.98,

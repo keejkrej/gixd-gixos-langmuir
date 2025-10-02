@@ -2,7 +2,7 @@ from pathlib import Path
 import pandas as pd
 import xarray as xr
 from utils.fit.gixos import fit_rfxsf, fit_r
-from data_gixos import get_samples, Sample
+from data_gixos import get_samples
 
 
 DATA_PATH = Path("./data/gixos")

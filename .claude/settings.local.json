@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(uvx ruff check:*)",
+      "Bash(python3:*)",
+      "Bash(source:*)"
     ],
     "deny": [],
     "ask": []

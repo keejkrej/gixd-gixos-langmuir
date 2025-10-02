@@ -44,15 +44,15 @@ def _plot_1d(
     out_path: Path,
     tau_max_data: dict,
 ):
-    """Shared helper to plot 1‑D intensity profiles.
+    """Shared helper to plot 1-D intensity profiles.
 
     Parameters
     ----------
-    file_info: list of tuples ``(filepath, pressure, idx)``
-    axis_name: ``"q"`` or ``"tau"`` – the coordinate dimension in the DataArray.
+    file_info: list of tuples (filepath, pressure, idx)
+    axis_name: "q" or "tau" - the coordinate dimension in the DataArray.
     xlabel, ylabel, title: Plot labels.
     out_path: Destination path for the saved PNG.
-    tau_max_data: Dictionary that will be populated with ``pressure -> argmax`` of the
+    tau_max_data: Dictionary that will be populated with pressure -> argmax of the
         intensity for each file (mirrors the original implementation).
     """
     fig = plt.figure(figsize=(8, 8))
@@ -63,24 +63,56 @@ def _plot_1d(
         intensity = da.values
         axis_vals = da[axis_name].values
 
-        # Label suffix distinguishes original vs water‑subtracted data
-        suffix = "orig" if "_orig_" in f else ("sub" if "_sub_" in f else "")
+        # Label suffix distinguishes original vs water-subtracted vs invquad-subtracted data
+        suffix = ""
+        if "_orig_" in f:
+            suffix = "orig"
+        elif "_sub_water_" in f:
+            suffix = "sub_water"
+        elif "_sub_invquad_" in f:
+            suffix = "sub_invquad"
+        elif "_sub_" in f:
+            # Legacy support for old naming convention
+            suffix = "sub"
         label = f"idx={idx}, p={pressure}[mN/m]" + (f" ({suffix})" if suffix else "")
+
+        # Set color and style based on data type
+        if "_orig_" in f:
+            color = "blue"
+            linestyle = "-"
+            linewidth = 2
+        elif "_sub_water_" in f:
+            color = "red"
+            linestyle = "--"
+            linewidth = 2
+        elif "_sub_invquad_" in f:
+            color = "green"
+            linestyle = ":"
+            linewidth = 2
+        elif "_sub_" in f:
+            color = "black"
+            linestyle = "-"
+            linewidth = 1
+        else:
+            color = "gray"
+            linestyle = "-"
+            linewidth = 1
 
         ax.plot(
             axis_vals,
             intensity,
-            "k-",
-            linewidth=2,
-            label=f"{label} (raw)",
+            color=color,
+            linestyle=linestyle,
+            linewidth=linewidth,
+            label=label,
         )
-        # Record the index of the maximum intensity for later tau‑max analysis.
+        # Record the index of the maximum intensity for later tau-max analysis.
         tau_max_data[pressure] = np.argmax(intensity)
 
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_title(title)
-    ax.legend()
+    ax.legend(loc="best", fontsize=9)
 
     plt.tight_layout()
     fig.savefig(out_path)
@@ -90,57 +122,63 @@ def _plot_1d(
 def plot_1d_profiles(sample_dir, plot_path, is_water=False):
     sample_name = sample_dir.name
 
-    q_files = sorted(glob.glob(str(sample_dir / f"{sample_name}_*_*_intensity_q.nc")))
-    tau_files = sorted(
-        glob.glob(str(sample_dir / f"{sample_name}_*_*_intensity_tau.nc"))
+    # Find all 1D profile files
+    # I(q) profiles
+    Iq_files_sub_water = sorted(
+        glob.glob(str(sample_dir / f"{sample_name}_*_*_sub_water_Iq.nc"))
     )
+    Iq_files_sub_invquad = sorted(
+        glob.glob(str(sample_dir / f"{sample_name}_*_*_sub_invquad_Iq.nc"))
+    )
+    Iq_files = Iq_files_sub_water + Iq_files_sub_invquad
 
-    # Handle water case (single file)
-    if is_water and not q_files:
-        q_files = sorted(glob.glob(str(sample_dir / f"{sample_name}_*_intensity_q.nc")))
-    if is_water and not tau_files:
-        tau_files = sorted(
-            glob.glob(str(sample_dir / f"{sample_name}_*_intensity_tau.nc"))
-        )
+    # I(tau) profiles
+    Itau_files_sub_water = sorted(
+        glob.glob(str(sample_dir / f"{sample_name}_*_*_sub_water_Itau.nc"))
+    )
+    Itau_files_sub_invquad = sorted(
+        glob.glob(str(sample_dir / f"{sample_name}_*_*_sub_invquad_Itau.nc"))
+    )
+    Itau_files = Itau_files_sub_water + Itau_files_sub_invquad
 
     # Dictionary to store tau_max vs pressure for this sample
     tau_max_data = {}
 
     # Plot I(q) profiles
-    if q_files:
-        q_file_info = []
-        for f in q_files:
+    if Iq_files:
+        Iq_file_info = []
+        for f in Iq_files:
             idx, pressure = parse_index_pressure(f, is_water)
-            q_file_info.append((f, pressure, idx))
-        q_file_info.sort(key=lambda x: (float("inf") if x[1] == "NA" else x[1], x[2]))
+            Iq_file_info.append((f, pressure, idx))
+        Iq_file_info.sort(key=lambda x: (float("inf") if x[1] == "NA" else x[1], x[2]))
 
-        out_q = plot_path / f"{sample_name}_Iq_profiles.png"
+        out_Iq = plot_path / f"{sample_name}_Iq_profiles.png"
         _plot_1d(
-            q_file_info,
+            Iq_file_info,
             axis_name="q",
-            xlabel="q (A$^{-1}$)",
+            xlabel="q (Å$^{-1}$)",
             ylabel="Intensity (a.u.)",
-            title=f"{sample_name} - I(q)",
-            out_path=out_q,
+            title=f"{sample_name} - I(q) Profiles",
+            out_path=out_Iq,
             tau_max_data=tau_max_data,
         )
 
-    # Plot I(tau) profiles using the shared helper
-    if tau_files:
-        tau_file_info = []
-        for f in tau_files:
+    # Plot I(tau) profiles
+    if Itau_files:
+        Itau_file_info = []
+        for f in Itau_files:
             idx, pressure = parse_index_pressure(f, is_water)
-            tau_file_info.append((f, pressure, idx))
-        tau_file_info.sort(key=lambda x: (float("inf") if x[1] == "NA" else x[1], x[2]))
+            Itau_file_info.append((f, pressure, idx))
+        Itau_file_info.sort(key=lambda x: (float("inf") if x[1] == "NA" else x[1], x[2]))
 
-        out_tau = plot_path / f"{sample_name}_Itau_profiles.png"
+        out_Itau = plot_path / f"{sample_name}_Itau_profiles.png"
         _plot_1d(
-            tau_file_info,
+            Itau_file_info,
             axis_name="tau",
             xlabel="tau (deg)",
             ylabel="Intensity (a.u.)",
-            title=f"{sample_name} - I(τ)",
-            out_path=out_tau,
+            title=f"{sample_name} - I(τ) Profiles",
+            out_path=out_Itau,
             tau_max_data=tau_max_data,
         )
 
@@ -149,7 +187,7 @@ def plot_1d_profiles(sample_dir, plot_path, is_water=False):
 
 def _plot_2d(
     cart_da: xr.DataArray,
-    polar_da: xr.DataArray,
+    polar_da: xr.DataArray | None,
     sample_name: str,
     idx: int,
     pressure: float,
@@ -157,7 +195,7 @@ def _plot_2d(
     plot_path: Path,
     vmax: float | None = None,
 ):
-    """Helper to generate the three 2‑D visualisations for a single frame."""
+    """Helper to generate 2D visualizations for a single frame."""
     # Plot I(qxy, qz) map
     fig_cart = plt.figure(figsize=(8, 8))
     ax_cart = fig_cart.add_subplot(111)
@@ -182,26 +220,14 @@ def _plot_2d(
     )
     fig_cart.colorbar(im_cart, ax=ax_cart)
 
-    out_cart = plot_path / f"{sample_name}_{idx}_{pressure}_{suffix}_Iqxyqz.png"
+    plt.tight_layout()
+    out_cart = plot_path / f"{sample_name}_{idx}_{pressure}_{suffix}_cart.png"
     fig_cart.savefig(out_cart)
     plt.close(fig_cart)
 
-    # Plot intensity histogram for cartesian map
-    fig_hist_cart = plt.figure(figsize=(6, 4))
-    ax_hist_cart = fig_hist_cart.add_subplot(111)
-    ax_hist_cart.hist(
-        cart_da.values.ravel(), bins=50, color="steelblue", edgecolor="black"
-    )
-    ax_hist_cart.set_xlabel("Intensity (a.u.)")
-    ax_hist_cart.set_ylabel("Frequency")
-    ax_hist_cart.set_title(
-        f"{sample_name} idx={idx}, p={pressure}[mN/m] - Intensity Histogram (Cartesian)"
-    )
-    out_hist_cart = (
-        plot_path / f"{sample_name}_{idx}_{pressure}_{suffix}_Iqxyqz_hist.png"
-    )
-    fig_hist_cart.savefig(out_hist_cart)
-    plt.close(fig_hist_cart)
+    # Only plot polar if polar_da is provided (skip for orig data)
+    if polar_da is None:
+        return
 
     # Plot I(q, τ) map
     fig_polar = plt.figure(figsize=(8, 8))
@@ -250,7 +276,8 @@ def _plot_2d(
     )
     fig_polar.colorbar(im_polar, ax=ax_polar)
 
-    out_polar = plot_path / f"{sample_name}_{idx}_{pressure}_{suffix}_Iqtau.png"
+    plt.tight_layout()
+    out_polar = plot_path / f"{sample_name}_{idx}_{pressure}_{suffix}_polar.png"
     fig_polar.savefig(out_polar)
     plt.close(fig_polar)
 
@@ -264,30 +291,47 @@ def plot_2d_maps(sample_dir, plot_path, is_water=False):
     """
     sample_name = sample_dir.name
     # Find cartesian files. Water samples may have a simplified naming pattern.
-    cart_files = sorted(glob.glob(str(sample_dir / f"{sample_name}_*_*_cartesian.nc")))
+    cart_files = sorted(glob.glob(str(sample_dir / f"{sample_name}_*_*_cart.nc")))
     if is_water and not cart_files:
         cart_files = sorted(
-            glob.glob(str(sample_dir / f"{sample_name}_*_cartesian.nc"))
+            glob.glob(str(sample_dir / f"{sample_name}_*_cart.nc"))
         )
 
     # intensity scaling – keep None for water, could be tuned for samples
     vmax = None
 
     for cart_path in cart_files:
+        # Skip background files (they're handled separately and don't have polar pairs)
+        if "_bg_invquad_cart.nc" in cart_path:
+            continue
+
         # Extract index and pressure from the filename
         idx, pressure = parse_index_pressure(cart_path, is_water)
 
-        # Determine suffix for labeling (orig / sub) if present in the filename
-        suffix = (
-            "orig" if "_orig_" in cart_path else ("sub" if "_sub_" in cart_path else "")
-        )
+        # Determine suffix for labeling (orig / sub_water / sub_invquad) if present in the filename
+        if "_orig_" in cart_path:
+            suffix = "orig"
+        elif "_sub_invquad_" in cart_path:
+            suffix = "sub_invquad"
+        elif "_sub_water_" in cart_path:
+            suffix = "sub_water"
+        elif "_sub_" in cart_path:
+            suffix = "sub"
+        else:
+            suffix = ""
 
-        # Derive the matching polar file name
-        polar_path = cart_path.replace("_cartesian.nc", "_polar.nc")
+        # Derive the matching polar file name (only for subtracted data)
+        polar_da = None
+        if suffix != "orig":
+            polar_path = cart_path.replace("_cart.nc", "_polar.nc")
+            try:
+                polar_da = xr.open_dataarray(polar_path)
+            except Exception as e:
+                print(f"Failed to load polar data for {cart_path}: {e}")
+                continue
 
         try:
             cart_da = xr.open_dataarray(cart_path)
-            polar_da = xr.open_dataarray(polar_path)
         except Exception as e:
             print(f"Failed to load data for {cart_path}: {e}")
             continue
@@ -326,6 +370,10 @@ def main():
         if tau_max_data and not is_water:
             all_tau_max_data[sample_name] = tau_max_data
 
+        # Plot background files (only for samples with invquad subtraction)
+        if not is_water:
+            plot_background_files(sample_dir, plot_path, is_water)
+
     # Plot tau_max vs pressure for all samples
     if all_tau_max_data:
         fig_tau_max = plt.figure(figsize=(8, 8))
@@ -357,6 +405,61 @@ def main():
         plt.close(fig_tau_max)
 
     print("GIXD plotting completed.")
+
+
+def plot_background_files(sample_dir, plot_path, is_water=False):
+    """Plot inverse quadratic background files and comparisons."""
+    sample_name = sample_dir.name
+
+    # Find all background files
+    background_files = sorted(
+        glob.glob(str(sample_dir / f"{sample_name}_*_*_bg_invquad_cart.nc"))
+    )
+
+    if not background_files:
+        return
+
+    for bg_path in background_files:
+        # Extract index and pressure from filename
+        idx, pressure = parse_index_pressure(bg_path, is_water)
+
+        try:
+            bg_da = xr.open_dataarray(bg_path)
+        except Exception as e:
+            print(f"Failed to load background data for {bg_path}: {e}")
+            continue
+
+        # Plot 2D background visualization
+        fig_bg = plt.figure(figsize=(8, 8))
+        ax_bg = fig_bg.add_subplot(111)
+
+        extent = (
+            float(bg_da["qxy"][0]),
+            float(bg_da["qxy"][-1]),
+            float(bg_da["qz"][0]),
+            float(bg_da["qz"][-1]),
+        )
+
+        im_bg = ax_bg.imshow(
+            bg_da.values,
+            origin="lower",
+            extent=extent,
+            aspect="auto",
+            vmin=0,
+            vmax=bg_da.max().item(),
+        )
+        ax_bg.set_xlabel("qxy (Å$^{-1}$)")
+        ax_bg.set_ylabel("qz (Å$^{-1}$)")
+        ax_bg.set_title(
+            f"{sample_name} idx={idx}, p={pressure} mN/m\n"
+            f"Fitted Background: I(qxy,qz) = A(qz)·qxy$^{{-2}}$ + B(qz)"
+        )
+        fig_bg.colorbar(im_bg, ax=ax_bg, label="Intensity (a.u.)")
+        plt.tight_layout()
+
+        out_bg = plot_path / f"{sample_name}_{idx}_{pressure}_bg_invquad_cart.png"
+        fig_bg.savefig(out_bg)
+        plt.close(fig_bg)
 
 
 if __name__ == "__main__":
