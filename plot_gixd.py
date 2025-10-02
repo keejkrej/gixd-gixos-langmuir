@@ -35,6 +35,58 @@ def parse_index_pressure(filename, is_water=False):
     return idx, pressure
 
 
+def _plot_1d(
+    file_info: list,
+    axis_name: str,
+    xlabel: str,
+    ylabel: str,
+    title: str,
+    out_path: Path,
+    tau_max_data: dict,
+):
+    """Shared helper to plot 1‑D intensity profiles.
+
+    Parameters
+    ----------
+    file_info: list of tuples ``(filepath, pressure, idx)``
+    axis_name: ``"q"`` or ``"tau"`` – the coordinate dimension in the DataArray.
+    xlabel, ylabel, title: Plot labels.
+    out_path: Destination path for the saved PNG.
+    tau_max_data: Dictionary that will be populated with ``pressure -> argmax`` of the
+        intensity for each file (mirrors the original implementation).
+    """
+    fig = plt.figure(figsize=(8, 8))
+    ax = fig.add_subplot(111)
+
+    for i, (f, pressure, idx) in enumerate(file_info):
+        da = xr.open_dataarray(f)
+        intensity = da.values
+        axis_vals = da[axis_name].values
+
+        # Label suffix distinguishes original vs water‑subtracted data
+        suffix = "orig" if "_orig_" in f else ("sub" if "_sub_" in f else "")
+        label = f"idx={idx}, p={pressure}[mN/m]" + (f" ({suffix})" if suffix else "")
+
+        ax.plot(
+            axis_vals,
+            intensity,
+            "k-",
+            linewidth=2,
+            label=f"{label} (raw)",
+        )
+        # Record the index of the maximum intensity for later tau‑max analysis.
+        tau_max_data[pressure] = np.argmax(intensity)
+
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.legend()
+
+    plt.tight_layout()
+    fig.savefig(out_path)
+    plt.close(fig)
+
+
 def plot_1d_profiles(sample_dir, plot_path, is_water=False):
     sample_name = sample_dir.name
 
@@ -56,222 +108,200 @@ def plot_1d_profiles(sample_dir, plot_path, is_water=False):
 
     # Plot I(q) profiles
     if q_files:
-        fig_q = plt.figure(figsize=(8, 8))
-        ax_q = fig_q.add_subplot(111)
-
         q_file_info = []
         for f in q_files:
             idx, pressure = parse_index_pressure(f, is_water)
             q_file_info.append((f, pressure, idx))
         q_file_info.sort(key=lambda x: (float("inf") if x[1] == "NA" else x[1], x[2]))
 
-        for i, (f, pressure, idx) in enumerate(q_file_info):
-            da = xr.open_dataarray(f)
-            intensity = da.values
-            q_values = da["q"].values
-
-            # Apply median filter for smoothing
-            # smoothed_intensity = median_filter(intensity, size=21)
-
-            label = f"idx={idx}, p={pressure}[mN/m]"
-
-            # Plot raw data
-            ax_q.plot(
-                q_values,
-                intensity,
-                "k-",
-                linewidth=2,
-                label=f"{label} (raw)",
-            )
-            # Plot smoothed data
-            # ax_q.plot(
-            #     q_values,
-            #     smoothed_intensity,
-            #     f"C{i}",
-            #     linewidth=2,
-            #     label=f"{label} (smoothed)",
-            # )
-            tau_max_data[pressure] = np.argmax(intensity)
-
-        ax_q.set_xlabel("q (A$^{-1}$)")
-        ax_q.set_ylabel("Intensity (a.u.)")
-        ax_q.set_title(f"{sample_name} - I(q)")
-        ax_q.legend()
-
-        plt.tight_layout()
         out_q = plot_path / f"{sample_name}_Iq_profiles.png"
-        fig_q.savefig(out_q)
-        plt.close(fig_q)
+        _plot_1d(
+            q_file_info,
+            axis_name="q",
+            xlabel="q (A$^{-1}$)",
+            ylabel="Intensity (a.u.)",
+            title=f"{sample_name} - I(q)",
+            out_path=out_q,
+            tau_max_data=tau_max_data,
+        )
 
-    # Plot I(tau) profiles
+    # Plot I(tau) profiles using the shared helper
     if tau_files:
-        fig_tau = plt.figure(figsize=(8, 8))
-        ax_tau = fig_tau.add_subplot(111)
-
         tau_file_info = []
         for f in tau_files:
             idx, pressure = parse_index_pressure(f, is_water)
             tau_file_info.append((f, pressure, idx))
         tau_file_info.sort(key=lambda x: (float("inf") if x[1] == "NA" else x[1], x[2]))
 
-        for i, (f, pressure, idx) in enumerate(tau_file_info):
-            da = xr.open_dataarray(f)
-            intensity = da.values
-            tau_values = da["tau"].values
-
-            # Apply median filter for smoothing
-            # smoothed_intensity = median_filter(intensity, size=21)
-
-            label = f"idx={idx}, p={pressure}[mN/m]"
-
-            # Plot raw data
-            ax_tau.plot(
-                tau_values,
-                intensity,
-                "k-",
-                linewidth=2,
-                label=f"{label} (raw)",
-            )
-            # Plot smoothed data
-            # ax_tau.plot(
-            #     tau_values,
-            #     smoothed_intensity,
-            #     f"C{i}",
-            #     linewidth=2,
-            #     label=f"{label} (smoothed)",
-            # )
-            tau_max_data[pressure] = np.argmax(intensity)
-
-            # # Calculate exponentially weighted center on smoothed median filter results
-            # if len(smoothed_intensity) > 0:
-            #     tau_center = exponential_weighted_center(
-            #         smoothed_intensity, tau_values, temperature=0.1
-            #     )
-
-            #     ax_tau.plot(
-            #         tau_center,
-            #         smoothed_intensity[np.argmin(np.abs(tau_values - tau_center))],
-            #         "rx",
-            #         markersize=20,
-            #         markeredgewidth=4,
-            #     )
-            #     # Store tau_center vs pressure
-            #     tau_max_data[pressure] = tau_center
-
-        ax_tau.set_xlabel("tau (deg)")
-        ax_tau.set_ylabel("Intensity (a.u.)")
-        ax_tau.set_title(f"{sample_name} - I(τ)")
-        ax_tau.legend()
-
-        plt.tight_layout()
         out_tau = plot_path / f"{sample_name}_Itau_profiles.png"
-        fig_tau.savefig(out_tau)
-        plt.close(fig_tau)
+        _plot_1d(
+            tau_file_info,
+            axis_name="tau",
+            xlabel="tau (deg)",
+            ylabel="Intensity (a.u.)",
+            title=f"{sample_name} - I(τ)",
+            out_path=out_tau,
+            tau_max_data=tau_max_data,
+        )
 
     return tau_max_data
 
 
-def plot_2d_maps(sample_dir, plot_path, is_water=False):
-    sample_name = sample_dir.name
-    cart_files = sorted(glob.glob(str(sample_dir / f"{sample_name}_*_*_cartesian.nc")))
+def _plot_2d(
+    cart_da: xr.DataArray,
+    polar_da: xr.DataArray,
+    sample_name: str,
+    idx: int,
+    pressure: float,
+    suffix: str,
+    plot_path: Path,
+    vmax: float | None = None,
+):
+    """Helper to generate the three 2‑D visualisations for a single frame."""
+    # Plot I(qxy, qz) map
+    fig_cart = plt.figure(figsize=(8, 8))
+    ax_cart = fig_cart.add_subplot(111)
 
-    # vmax = None if is_water else 10
-    vmax = None
-    # Handle water case (single file)
+    im_cart = ax_cart.imshow(
+        cart_da.values,
+        origin="lower",
+        extent=(
+            float(cart_da["qxy"][0]),
+            float(cart_da["qxy"][-1]),
+            float(cart_da["qz"][0]),
+            float(cart_da["qz"][-1]),
+        ),
+        aspect="auto",
+        vmin=0,
+        vmax=vmax,
+    )
+    ax_cart.set_xlabel("qxy (A$^{-1}$)")
+    ax_cart.set_ylabel("qz (A$^{-1}$)")
+    ax_cart.set_title(
+        f"{sample_name} idx={idx}, p={pressure}[mN/m] ({suffix}) - I(qxy, qz)"
+    )
+    fig_cart.colorbar(im_cart, ax=ax_cart)
+
+    out_cart = plot_path / f"{sample_name}_{idx}_{pressure}_{suffix}_Iqxyqz.png"
+    fig_cart.savefig(out_cart)
+    plt.close(fig_cart)
+
+    # Plot intensity histogram for cartesian map
+    fig_hist_cart = plt.figure(figsize=(6, 4))
+    ax_hist_cart = fig_hist_cart.add_subplot(111)
+    ax_hist_cart.hist(
+        cart_da.values.ravel(), bins=50, color="steelblue", edgecolor="black"
+    )
+    ax_hist_cart.set_xlabel("Intensity (a.u.)")
+    ax_hist_cart.set_ylabel("Frequency")
+    ax_hist_cart.set_title(
+        f"{sample_name} idx={idx}, p={pressure}[mN/m] - Intensity Histogram (Cartesian)"
+    )
+    out_hist_cart = (
+        plot_path / f"{sample_name}_{idx}_{pressure}_{suffix}_Iqxyqz_hist.png"
+    )
+    fig_hist_cart.savefig(out_hist_cart)
+    plt.close(fig_hist_cart)
+
+    # Plot I(q, τ) map
+    fig_polar = plt.figure(figsize=(8, 8))
+    ax_polar = fig_polar.add_subplot(111)
+
+    im_polar = ax_polar.imshow(
+        polar_da.values,
+        origin="lower",
+        extent=(
+            float(polar_da["q"][0]),
+            float(polar_da["q"][-1]),
+            float(polar_da["tau"][0]),
+            float(polar_da["tau"][-1]),
+        ),
+        aspect="auto",
+        vmin=0,
+        vmax=vmax,
+    )
+
+    # Draw ROI_Q rectangle
+    rect_q = patches.Rectangle(
+        (ROI_IQ[0], ROI_IQ[2]),  # (x, y) lower left corner
+        ROI_IQ[1] - ROI_IQ[0],  # width
+        ROI_IQ[3] - ROI_IQ[2],  # height
+        linewidth=2,
+        edgecolor="red",
+        facecolor="none",
+    )
+    ax_polar.add_patch(rect_q)
+
+    # Draw ROI_TAU rectangle
+    rect_tau = patches.Rectangle(
+        (ROI_ITAU[0], ROI_ITAU[2]),  # (x, y) lower left corner
+        ROI_ITAU[1] - ROI_ITAU[0],  # width
+        ROI_ITAU[3] - ROI_ITAU[2],  # height
+        linewidth=2,
+        edgecolor="magenta",
+        facecolor="none",
+    )
+    ax_polar.add_patch(rect_tau)
+
+    ax_polar.set_xlabel("q (A$^{-1}$)")
+    ax_polar.set_ylabel("tau (deg)")
+    ax_polar.set_title(
+        f"{sample_name} idx={idx}, p={pressure}[mN/m] ({suffix}) - I(q, τ) [τ = arctan(qz/qxy)]"
+    )
+    fig_polar.colorbar(im_polar, ax=ax_polar)
+
+    out_polar = plot_path / f"{sample_name}_{idx}_{pressure}_{suffix}_Iqtau.png"
+    fig_polar.savefig(out_polar)
+    plt.close(fig_polar)
+
+
+def plot_2d_maps(sample_dir, plot_path, is_water=False):
+    """
+    Generate 2‑D visualisations (cartesian, polar, histograms) for each frame
+    stored in *cartesian*.nc files. For each cartesian file we locate the corresponding
+    polar file (same prefix, ending in ``_polar.nc``), parse the index and pressure
+    from the filename, and call ``_plot_2d_maps_helper``.
+    """
+    sample_name = sample_dir.name
+    # Find cartesian files. Water samples may have a simplified naming pattern.
+    cart_files = sorted(glob.glob(str(sample_dir / f"{sample_name}_*_*_cartesian.nc")))
     if is_water and not cart_files:
         cart_files = sorted(
             glob.glob(str(sample_dir / f"{sample_name}_*_cartesian.nc"))
         )
 
-    for cart_path in cart_files:
-        idx, pressure = parse_index_pressure(cart_path, is_water)
-        polar_path = cart_path.replace("_cartesian.nc", "_polar.nc")
+    # intensity scaling – keep None for water, could be tuned for samples
+    vmax = None
 
-        if not Path(polar_path).exists():
-            continue
+    for cart_path in cart_files:
+        # Extract index and pressure from the filename
+        idx, pressure = parse_index_pressure(cart_path, is_water)
+
+        # Determine suffix for labeling (orig / sub) if present in the filename
+        suffix = (
+            "orig" if "_orig_" in cart_path else ("sub" if "_sub_" in cart_path else "")
+        )
+
+        # Derive the matching polar file name
+        polar_path = cart_path.replace("_cartesian.nc", "_polar.nc")
 
         try:
             cart_da = xr.open_dataarray(cart_path)
             polar_da = xr.open_dataarray(polar_path)
-        except Exception:
+        except Exception as e:
+            print(f"Failed to load data for {cart_path}: {e}")
             continue
 
-        # Plot I(qxy, qz) map
-        fig_cart = plt.figure(figsize=(8, 8))
-        ax_cart = fig_cart.add_subplot(111)
-
-        im_cart = ax_cart.imshow(
-            cart_da.values,
-            origin="lower",
-            extent=(
-                float(cart_da["qxy"][0]),
-                float(cart_da["qxy"][-1]),
-                float(cart_da["qz"][0]),
-                float(cart_da["qz"][-1]),
-            ),
-            aspect="auto",
-            vmin=0,
+        _plot_2d(
+            cart_da,
+            polar_da,
+            sample_name,
+            idx,
+            pressure,
+            suffix,
+            plot_path,
             vmax=vmax,
         )
-        ax_cart.set_xlabel("qxy (A$^{-1}$)")
-        ax_cart.set_ylabel("qz (A$^{-1}$)")
-        ax_cart.set_title(f"{sample_name} idx={idx}, p={pressure}[mN/m] - I(qxy, qz)")
-        fig_cart.colorbar(im_cart, ax=ax_cart)
-
-        out_cart = plot_path / f"{sample_name}_{idx}_{pressure}_Iqxyqz.png"
-        fig_cart.savefig(out_cart)
-        plt.close(fig_cart)
-
-        # Plot I(q, τ) map
-        fig_polar = plt.figure(figsize=(8, 8))
-        ax_polar = fig_polar.add_subplot(111)
-
-        im_polar = ax_polar.imshow(
-            polar_da.values,
-            origin="lower",
-            extent=(
-                float(polar_da["q"][0]),
-                float(polar_da["q"][-1]),
-                float(polar_da["tau"][0]),
-                float(polar_da["tau"][-1]),
-            ),
-            aspect="auto",
-            vmin=0,
-            vmax=vmax,
-        )
-
-        # Draw ROI_Q rectangle
-        rect_q = patches.Rectangle(
-            (ROI_IQ[0], ROI_IQ[2]),  # (x, y) lower left corner
-            ROI_IQ[1] - ROI_IQ[0],  # width
-            ROI_IQ[3] - ROI_IQ[2],  # height
-            linewidth=2,
-            edgecolor="red",
-            facecolor="none",
-        )
-        ax_polar.add_patch(rect_q)
-
-        # Draw ROI_TAU rectangle
-        rect_tau = patches.Rectangle(
-            (ROI_ITAU[0], ROI_ITAU[2]),  # (x, y) lower left corner
-            ROI_ITAU[1] - ROI_ITAU[0],  # width
-            ROI_ITAU[3] - ROI_ITAU[2],  # height
-            linewidth=2,
-            edgecolor="magenta",
-            facecolor="none",
-        )
-        ax_polar.add_patch(rect_tau)
-
-        ax_polar.set_xlabel("q (A$^{-1}$)")
-        ax_polar.set_ylabel("tau (deg)")
-        ax_polar.set_title(
-            f"{sample_name} idx={idx}, p={pressure}[mN/m] - I(q, τ) [τ = arctan(qz/qxy)]"
-        )
-        fig_polar.colorbar(im_polar, ax=ax_polar)
-
-        out_polar = plot_path / f"{sample_name}_{idx}_{pressure}_Iqtau.png"
-        fig_polar.savefig(out_polar)
-        plt.close(fig_polar)
 
 
 def main():
@@ -325,6 +355,8 @@ def main():
         out_tau_max = plot_dir / "tau_max_vs_pressure.png"
         fig_tau_max.savefig(out_tau_max)
         plt.close(fig_tau_max)
+
+    print("GIXD plotting completed.")
 
 
 if __name__ == "__main__":

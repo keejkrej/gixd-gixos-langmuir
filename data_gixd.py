@@ -21,17 +21,17 @@ SAMPLES_TEST: list[Sample] = [
 ]
 
 
-def get_samples(test: bool = False) -> list[Sample]:
+def get_samples(is_test: bool = False) -> list[Sample]:
     """
     Returns a list of samples to process.
 
     Args:
-        test: If True, returns a single sample for testing.
+        is_test: If True, returns a single sample for testing.
 
     Returns:
         A list of samples.
     """
-    return SAMPLES_TEST if test else SAMPLES
+    return SAMPLES_TEST if is_test else SAMPLES
 
 
 ROI_IQ = [0.7, 2.0, 0, 10]  # [q_min, q_max, tau_min, tau_max]
