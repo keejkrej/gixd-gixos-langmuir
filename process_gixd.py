@@ -8,7 +8,7 @@ Background subtraction options:
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 from utils.data.gixd import (
     load_gixd_xarray,
@@ -32,14 +32,18 @@ SUBTRACT_WATER = False
 SUBTRACT_INVQUAD = True
 IS_TEST = False
 QZ_CUTOFF = 0.04
-QZ_BIN = 20  # channels
+QZ_BIN = 5  # channels
+QXY_BIN = 5  # channels for qxy binning before background fitting
 Q_BIN = 0.05
-TAU_BIN = 0.0872665
+TAU_BIN = 0.02
 
-# Inverse quadratic background subtraction settings with slice-wise fitting
-# Uses model: I = A(qz)*Qxy^-2 + B(qz) fitted slice-by-slice
+# Inverse quadratic background subtraction settings with global fitting
+# Uses model: I(qxy,qz) = (A*qz + B)*Qxy^-2 + C fitted globally across all slices
 # Edges are automatically detected by scanning for jumps from zero-filled regions
-INVQUAD_NUM_FITTING_POINTS = 5  # Points to use from each edge for fitting
+INVQUAD_NUM_FITTING_POINTS = 10  # Points to use from each edge for fitting
+INVQUAD_USE_GLOBAL_FIT = True
+
+QZ_SLICE_RANGE = (0.2, 0.4)
 
 # Validate subtraction settings (prevent both being enabled)
 if SUBTRACT_WATER and SUBTRACT_INVQUAD:
@@ -85,16 +89,19 @@ def process_sample(
 
     print(f"Processing {name}...")
 
-    last_cartesian: Optional[xr.DataArray] = None
+    da_cart_binned = None
+
     for i, p in zip(index, pressure):
         da_cart = load_gixd_xarray(data_dir, name, i)
 
         # Preserve the original cartesian data (pre-subtraction)
         da_cart_orig = da_cart.sel(qz=slice(QZ_CUTOFF, None))
 
-        # Bin and save the original cartesian data
-        da_cart_orig_bin = da_cart_orig.coarsen(qz=QZ_BIN, boundary="trim").mean()
-        da_cart_orig_bin.to_netcdf(out_dir / f"{name}_{i}_{p}_orig_cart.nc")
+        # Bin both qz and qxy early for better SNR
+        da_cart_binned = da_cart_orig.coarsen(
+            qz=QZ_BIN, qxy=QXY_BIN, boundary="trim"
+        ).mean()
+        da_cart_binned.to_netcdf(out_dir / f"{name}_{i}_{p}_orig_cart.nc")
 
         # Apply background subtraction based on configuration
         da_cart_sub_water = None
@@ -107,38 +114,46 @@ def process_sample(
             and da_water is not None
             and not SUBTRACT_INVQUAD
         ):
-            # Water subtraction
-            da_cart_sub_water = da_cart_orig - da_water
-            da_cart_sub_water_bin = da_cart_sub_water.coarsen(
-                qz=QZ_BIN, boundary="trim"
-            ).mean()
+            # Water subtraction on binned data
+            da_cart_sub_water = da_cart_binned - da_water  # Both already binned
 
-            da_cart_sub_water_bin.to_netcdf(
-                out_dir / f"{name}_{i}_{p}_sub_water_cart.nc"
-            )
+            da_cart_sub_water.to_netcdf(out_dir / f"{name}_{i}_{p}_sub_water_cart.nc")
         elif not is_water and SUBTRACT_INVQUAD:
             # Inverse quadratic background subtraction
             try:
-                # Fit and subtract inverse quadratic background slice-by-slice
-                da_cart_sub_invquad, background = subtract_invquad_background(
-                    da_cart_orig,
+                # Fit and subtract inverse quadratic background on binned data
+                da_cart_sub_invquad, background, fit_mask = subtract_invquad_background(
+                    da_cart_binned,
                     num_fitting_points=INVQUAD_NUM_FITTING_POINTS,
-                    return_background=True,
+                    use_global_fit=INVQUAD_USE_GLOBAL_FIT,
                 )
 
-                # Bin and save the inverse quadratic subtracted data
-                da_cart_sub_invquad_bin = da_cart_sub_invquad.coarsen(
-                    qz=QZ_BIN, boundary="trim"
-                ).mean()
-                da_cart_sub_invquad_bin.to_netcdf(
+                # Save the subtracted data (already binned)
+                da_cart_sub_invquad.to_netcdf(
                     out_dir / f"{name}_{i}_{p}_sub_invquad_cart.nc"
                 )
 
-                # Save the binned background for inspection
-                background_bin = background.coarsen(qz=QZ_BIN, boundary="trim").mean()
-                background_bin.to_netcdf(
-                    out_dir / f"{name}_{i}_{p}_bg_invquad_cart.nc"
+                # Save the background (already binned)
+                background.to_netcdf(out_dir / f"{name}_{i}_{p}_bg_invquad_cart.nc")
+
+                # Save the fit mask
+                fit_mask.to_netcdf(out_dir / f"{name}_{i}_{p}_fit_mask_cart.nc")
+
+                # Extract horizontal slice comparison using binned original and background
+                orig_profile, bg_profile = extract_horizontal_slice_comparison(
+                    da_cart_binned, background, name, i, p
                 )
+
+                if orig_profile is not None:
+                    out_base = f"{name}_{i}_{p}_horizontal_slice"
+                    orig_file = out_dir / f"{out_base}_orig.nc"
+                    bg_file = out_dir / f"{out_base}_bg.nc"
+                    diff_profile = orig_profile - bg_profile
+                    diff_file = out_dir / f"{out_base}_diff.nc"
+
+                    orig_profile.to_netcdf(orig_file)
+                    bg_profile.to_netcdf(bg_file)
+                    diff_profile.to_netcdf(diff_file)
 
             except Exception as e:
                 print(
@@ -149,7 +164,9 @@ def process_sample(
         # Process polar and 1D intensity profiles for the inverse quadratic subtracted version
         if da_cart_sub_invquad is not None:
             da_polar_sub_invquad = gixd_cartesian2polar(
-                da_cart_sub_invquad, dq=Q_BIN, dtau=TAU_BIN
+                da_cart_sub_invquad,
+                dq=Q_BIN,
+                dtau=TAU_BIN,  # Uses binned cartesian
             )
             # Save full 2D polar data for plotting
             da_polar_sub_invquad.to_netcdf(
@@ -182,9 +199,7 @@ def process_sample(
                 da_cart_sub_water, dq=Q_BIN, dtau=TAU_BIN
             )
             # Save full 2D polar data for plotting
-            da_polar_sub_water.to_netcdf(
-                out_dir / f"{name}_{i}_{p}_sub_water_polar.nc"
-            )
+            da_polar_sub_water.to_netcdf(out_dir / f"{name}_{i}_{p}_sub_water_polar.nc")
 
             # Extract I(q) profile
             intensity_q_sub_water = extract_intensity_q(
@@ -192,9 +207,7 @@ def process_sample(
                 q_range=(ROI_IQ[0], ROI_IQ[1]),
                 tau_range=(ROI_IQ[2], ROI_IQ[3]),
             )
-            intensity_q_sub_water.to_netcdf(
-                out_dir / f"{name}_{i}_{p}_sub_water_Iq.nc"
-            )
+            intensity_q_sub_water.to_netcdf(out_dir / f"{name}_{i}_{p}_sub_water_Iq.nc")
 
             # Extract I(tau) profile
             intensity_tau_sub_water = extract_intensity_tau(
@@ -206,12 +219,73 @@ def process_sample(
                 out_dir / f"{name}_{i}_{p}_sub_water_Itau.nc"
             )
 
-        # Store the last processed cartesian (original version) for water reference return
-        last_cartesian = da_cart_orig
-
     if is_water:
-        return last_cartesian
+        return da_cart_binned
     return None
+
+
+def extract_horizontal_slice_comparison(
+    da_cart_orig: xr.DataArray,
+    da_background: xr.DataArray,
+    name: str,
+    index: int,
+    pressure: float,
+    qz_range: tuple[float, float] = QZ_SLICE_RANGE,
+) -> Tuple[xr.DataArray, xr.DataArray]:
+    """
+    Extract horizontal slice (constant qz) profiles for original data and background.
+
+    Takes the mean over a small qz range near 0 to create 1D profiles.
+
+    Parameters:
+    -----------
+    da_cart_orig : xr.DataArray
+        Original unsubtracted cartesian data
+    da_background : xr.DataArray
+        Fitted background data
+    name : str
+        Sample name
+    index : int
+        Sample index
+    pressure : float
+        Sample pressure
+    qz_range : tuple[float, float]
+        qz range to average over (default: 0.2 to 0.4)
+
+    Returns:
+    --------
+    tuple[xr.DataArray, xr.DataArray] or (None, None)
+        Original profile and background profile
+    """
+    try:
+        # Select qz range near 0
+        da_orig_slice = da_cart_orig.sel(qz=slice(qz_range[0], qz_range[1]))
+        da_bg_slice = da_background.sel(qz=slice(qz_range[0], qz_range[1]))
+
+        # Average over qz dimension to get 1D profiles
+        orig_profile = da_orig_slice.mean(dim="qz")
+        bg_profile = da_bg_slice.mean(dim="qz")
+
+        # Add metadata to profiles
+        common_attrs = {
+            "description": f"Horizontal slice profile (qz mean: {qz_range[0]}-{qz_range[1]})",
+            "sample_name": name,
+            "index": index,
+            "pressure": pressure,
+            "qz_range_min": qz_range[0],
+            "qz_range_max": qz_range[1],
+            "model": "I(qxy,qz) = (A*qz + B)*qxy^-2 + C",
+        }
+        orig_profile.attrs = {**common_attrs, "profile_type": "original"}
+        bg_profile.attrs = {**common_attrs, "profile_type": "background"}
+
+        return orig_profile, bg_profile
+
+    except Exception as e:
+        print(
+            f"Warning: Failed to extract horizontal slice profiles for {name}_{index}_{pressure}: {e}"
+        )
+        return None, None
 
 
 def main():

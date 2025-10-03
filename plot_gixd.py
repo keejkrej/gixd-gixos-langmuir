@@ -3,11 +3,14 @@ import xarray as xr
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
+import numpy.ma as ma
 import glob
 import re
+from matplotlib.colors import ListedColormap
 
 # from scipy.ndimage import median_filter
 # from utils.math.com import exponential_weighted_center
+from utils.math.peak import fit_mirrored_gaussian
 from data_gixd import ROI_IQ, ROI_ITAU
 
 
@@ -31,7 +34,8 @@ def parse_index_pressure(filename, is_water=False):
             f"Could not parse index and pressure from filename: {filename}"
         )
     idx = int(m.group(1))
-    pressure = float(m.group(2))
+    pressure_str = m.group(2)
+    pressure = float(pressure_str) if pressure_str != "NA" else "NA"
     return idx, pressure
 
 
@@ -58,6 +62,15 @@ def _plot_1d(
     fig = plt.figure(figsize=(8, 8))
     ax = fig.add_subplot(111)
 
+    # Extract pressures for colormap normalization
+    pressures = [pressure for _, pressure, _ in file_info if pressure != "NA"]
+    if pressures:
+        # Create colormap for pressures
+        cmap = plt.cm.viridis
+        norm = plt.Normalize(vmin=min(pressures), vmax=max(pressures))
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
+
     for i, (f, pressure, idx) in enumerate(file_info):
         da = xr.open_dataarray(f)
         intensity = da.values
@@ -76,43 +89,74 @@ def _plot_1d(
             suffix = "sub"
         label = f"idx={idx}, p={pressure}[mN/m]" + (f" ({suffix})" if suffix else "")
 
-        # Set color and style based on data type
-        if "_orig_" in f:
-            color = "blue"
-            linestyle = "-"
-            linewidth = 2
-        elif "_sub_water_" in f:
-            color = "red"
-            linestyle = "--"
-            linewidth = 2
-        elif "_sub_invquad_" in f:
-            color = "green"
-            linestyle = ":"
-            linewidth = 2
-        elif "_sub_" in f:
-            color = "black"
-            linestyle = "-"
-            linewidth = 1
-        else:
+        # Set color based on pressure, style based on data type
+        if pressure == "NA":
             color = "gray"
-            linestyle = "-"
-            linewidth = 1
+        else:
+            color = cmap(norm(pressure))
 
-        ax.plot(
+        ax.scatter(
             axis_vals,
             intensity,
             color=color,
-            linestyle=linestyle,
-            linewidth=linewidth,
+            s=20,  # marker size
+            alpha=0.7,
             label=label,
         )
-        # Record the index of the maximum intensity for later tau-max analysis.
-        tau_max_data[pressure] = np.argmax(intensity)
+
+        # For tau profiles, also plot the fitted mirrored Gaussian curve and center line
+        if axis_name == "tau":
+            try:
+                _, center_fit, _, _, fitted_curve = fit_mirrored_gaussian(
+                    axis_vals, intensity
+                )
+                ax.plot(
+                    axis_vals,
+                    fitted_curve,
+                    color=color,
+                    linestyle="-",
+                    linewidth=2,
+                    alpha=1.0,
+                )
+                # Add vertical line at the fitted center position
+                ax.axvline(
+                    x=center_fit,
+                    color=color,
+                    linestyle=":",
+                    linewidth=1.5,
+                    alpha=0.7,
+                )
+                tau_max_data[pressure] = center_fit
+            except Exception as e:
+                print(
+                    f"Warning: Failed to fit mirrored Gaussian for tau profile at pressure {pressure}: {e}"
+                )
+                # Fallback to argmax if fitting fails
+                center_fallback = axis_vals[np.argmax(intensity)]
+                tau_max_data[pressure] = center_fallback
+                # Still add a vertical line at the fallback position
+                ax.axvline(
+                    x=center_fallback,
+                    color=color,
+                    linestyle=":",
+                    linewidth=1.5,
+                    alpha=0.7,
+                )
+        else:
+            # For q profiles, just use the position of maximum intensity
+            tau_max_data[pressure] = axis_vals[np.argmax(intensity)]
 
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
+    if axis_name == "tau":
+        title += " (data points with mirrored Gaussian fits & centers)"
     ax.set_title(title)
     ax.legend(loc="best", fontsize=9)
+
+    # Add colorbar if we have pressure data
+    if pressures:
+        cbar = fig.colorbar(sm, ax=ax, shrink=0.8)
+        cbar.set_label("Pressure (mN/m)")
 
     plt.tight_layout()
     fig.savefig(out_path)
@@ -169,7 +213,9 @@ def plot_1d_profiles(sample_dir, plot_path, is_water=False):
         for f in Itau_files:
             idx, pressure = parse_index_pressure(f, is_water)
             Itau_file_info.append((f, pressure, idx))
-        Itau_file_info.sort(key=lambda x: (float("inf") if x[1] == "NA" else x[1], x[2]))
+        Itau_file_info.sort(
+            key=lambda x: (float("inf") if x[1] == "NA" else x[1], x[2])
+        )
 
         out_Itau = plot_path / f"{sample_name}_Itau_profiles.png"
         _plot_1d(
@@ -193,7 +239,9 @@ def _plot_2d(
     pressure: float,
     suffix: str,
     plot_path: Path,
+    vmin: float | None = None,
     vmax: float | None = None,
+    mask_da: xr.DataArray | None = None,
 ):
     """Helper to generate 2D visualizations for a single frame."""
     # Plot I(qxy, qz) map
@@ -210,15 +258,37 @@ def _plot_2d(
             float(cart_da["qz"][-1]),
         ),
         aspect="auto",
-        vmin=0,
+        vmin=vmin,
         vmax=vmax,
     )
     ax_cart.set_xlabel("qxy (A$^{-1}$)")
     ax_cart.set_ylabel("qz (A$^{-1}$)")
+    title_suffix = f" ({suffix})"
+    if mask_da is not None:
+        title_suffix += " with fit points"
     ax_cart.set_title(
-        f"{sample_name} idx={idx}, p={pressure}[mN/m] ({suffix}) - I(qxy, qz)"
+        f"{sample_name} idx={idx}, p={pressure}[mN/m]{title_suffix} - I(qxy, qz)"
     )
     fig_cart.colorbar(im_cart, ax=ax_cart)
+
+    # Overlay fit mask if provided
+    if mask_da is not None:
+        # Create a masked array to show only True regions as solid red
+        masked_mask = ma.masked_where(mask_da.values == 0, np.ones_like(mask_da.values))
+        red_cmap = ListedColormap(["red"])
+        ax_cart.imshow(
+            masked_mask,
+            extent=(
+                float(mask_da["qxy"][0]),
+                float(mask_da["qxy"][-1]),
+                float(mask_da["qz"][0]),
+                float(mask_da["qz"][-1]),
+            ),
+            origin="lower",
+            alpha=0.5,
+            cmap=red_cmap,
+            zorder=10,
+        )
 
     plt.tight_layout()
     out_cart = plot_path / f"{sample_name}_{idx}_{pressure}_{suffix}_cart.png"
@@ -243,7 +313,7 @@ def _plot_2d(
             float(polar_da["tau"][-1]),
         ),
         aspect="auto",
-        vmin=0,
+        vmin=vmin,
         vmax=vmax,
     )
 
@@ -293,16 +363,19 @@ def plot_2d_maps(sample_dir, plot_path, is_water=False):
     # Find cartesian files. Water samples may have a simplified naming pattern.
     cart_files = sorted(glob.glob(str(sample_dir / f"{sample_name}_*_*_cart.nc")))
     if is_water and not cart_files:
-        cart_files = sorted(
-            glob.glob(str(sample_dir / f"{sample_name}_*_cart.nc"))
-        )
+        cart_files = sorted(glob.glob(str(sample_dir / f"{sample_name}_*_cart.nc")))
 
     # intensity scaling – keep None for water, could be tuned for samples
+    vmin = None
     vmax = None
 
     for cart_path in cart_files:
         # Skip background files (they're handled separately and don't have polar pairs)
         if "_bg_invquad_cart.nc" in cart_path:
+            continue
+
+        # Skip fit mask files (they are not for 2D plotting and have no polar counterpart)
+        if "_fit_mask_cart.nc" in cart_path:
             continue
 
         # Extract index and pressure from the filename
@@ -319,6 +392,20 @@ def plot_2d_maps(sample_dir, plot_path, is_water=False):
             suffix = "sub"
         else:
             suffix = ""
+
+        # Load fit mask only for orig cart files
+        mask_da = None
+        if suffix == "orig":
+            # Extract base name without suffix to match mask filename
+            cart_path_obj = Path(cart_path)
+            base_name = cart_path_obj.name.replace(f"_{suffix}_cart.nc", "")
+            mask_path = cart_path_obj.parent / f"{base_name}_fit_mask_cart.nc"
+            try:
+                mask_da = xr.open_dataarray(mask_path)
+            except FileNotFoundError:
+                pass  # No mask, continue without overlay
+            except Exception as e:
+                print(f"Failed to load mask for {cart_path}: {e}")
 
         # Derive the matching polar file name (only for subtracted data)
         polar_da = None
@@ -344,7 +431,9 @@ def plot_2d_maps(sample_dir, plot_path, is_water=False):
             pressure,
             suffix,
             plot_path,
+            vmin=vmin,
             vmax=vmax,
+            mask_da=mask_da,
         )
 
 
@@ -373,6 +462,7 @@ def main():
         # Plot background files (only for samples with invquad subtraction)
         if not is_water:
             plot_background_files(sample_dir, plot_path, is_water)
+            plot_horizontal_slice_comparison(sample_dir, plot_path, is_water)
 
     # Plot tau_max vs pressure for all samples
     if all_tau_max_data:
@@ -393,9 +483,9 @@ def main():
             if pressures:  # Only plot if there's data left after filtering
                 ax_tau_max.plot(pressures, tau_max_values, "o-", label=sample_name)
 
-        ax_tau_max.set_xlabel("Pressure")
-        ax_tau_max.set_ylabel("Tau_max (deg)")
-        ax_tau_max.set_title("Tau_max vs Pressure")
+        ax_tau_max.set_xlabel("Pressure (mN/m)")
+        ax_tau_max.set_ylabel("Tau_center (deg)")
+        ax_tau_max.set_title("Tau_center vs Pressure")
         ax_tau_max.legend()
         ax_tau_max.grid(True, alpha=0.3)
 
@@ -445,14 +535,12 @@ def plot_background_files(sample_dir, plot_path, is_water=False):
             origin="lower",
             extent=extent,
             aspect="auto",
-            vmin=0,
-            vmax=bg_da.max().item(),
         )
         ax_bg.set_xlabel("qxy (Å$^{-1}$)")
         ax_bg.set_ylabel("qz (Å$^{-1}$)")
         ax_bg.set_title(
             f"{sample_name} idx={idx}, p={pressure} mN/m\n"
-            f"Fitted Background: I(qxy,qz) = A(qz)·qxy$^{{-2}}$ + B(qz)"
+            f"Fitted Background: I(qxy,qz) = (A·qz + B)·qxy$^{{-2}}$ + C"
         )
         fig_bg.colorbar(im_bg, ax=ax_bg, label="Intensity (a.u.)")
         plt.tight_layout()
@@ -460,6 +548,131 @@ def plot_background_files(sample_dir, plot_path, is_water=False):
         out_bg = plot_path / f"{sample_name}_{idx}_{pressure}_bg_invquad_cart.png"
         fig_bg.savefig(out_bg)
         plt.close(fig_bg)
+
+
+def plot_horizontal_slice_comparison(sample_dir, plot_path, is_water=False):
+    """Plot horizontal slice profiles for original data, background, and difference."""
+    sample_name = sample_dir.name
+
+    # Find all horizontal slice original files
+    orig_files = sorted(
+        glob.glob(str(sample_dir / f"{sample_name}_*_*_horizontal_slice_orig.nc"))
+    )
+
+    if not orig_files:
+        return
+
+    for orig_path in orig_files:
+        # Extract index and pressure from filename
+        idx, pressure = parse_index_pressure(orig_path, is_water)
+
+        try:
+            # Derive paths for bg and diff
+            base_path = orig_path.replace("_horizontal_slice_orig.nc", "")
+            bg_path = base_path + "_horizontal_slice_bg.nc"
+            diff_path = base_path + "_horizontal_slice_diff.nc"
+
+            # Load the three DataArrays
+            orig_da = xr.open_dataarray(orig_path)
+            bg_da = xr.open_dataarray(bg_path)
+            diff_da = xr.open_dataarray(diff_path)
+
+            # Load fit mask and compute union over qz range
+            # Format pressure as integer if it's a whole number to match file naming convention
+            pressure_str = (
+                str(int(pressure)) if pressure == int(pressure) else str(pressure)
+            )
+            mask_path = (
+                sample_dir / f"{sample_name}_{idx}_{pressure_str}_fit_mask_cart.nc"
+            )
+            fitted_mask = None
+            try:
+                mask_da = xr.open_dataarray(mask_path)
+                qz_min = orig_da.attrs["qz_range_min"]
+                qz_max = orig_da.attrs["qz_range_max"]
+                qz_slice = mask_da.sel(qz=slice(qz_min, qz_max))
+                fitted_mask = np.any(qz_slice.values, axis=0)
+            except Exception as e:
+                print(f"Failed to load mask for horizontal slice {orig_path}: {e}")
+
+        except Exception as e:
+            print(f"Failed to load horizontal slice files for {orig_path}: {e}")
+            continue
+
+        try:
+            # Create plot
+            fig, ax = plt.subplots(figsize=(10, 6))
+
+            qxy_vals = orig_da["qxy"].values
+            orig_vals = orig_da.values
+            bg_vals = bg_da.values
+            diff_vals = diff_da.values
+
+            # Plot original data
+            ax.plot(
+                qxy_vals, orig_vals, "b-", linewidth=2, label="Original data", alpha=0.8
+            )
+
+            # Overlay fit points on original data
+            if fitted_mask is not None:
+                ax.scatter(
+                    qxy_vals[fitted_mask],
+                    orig_vals[fitted_mask],
+                    color="red",
+                    marker="x",
+                    s=20,
+                    zorder=5,
+                    label="Fit points",
+                )
+
+            # Plot background
+            ax.plot(
+                qxy_vals,
+                bg_vals,
+                "r--",
+                linewidth=2,
+                label="Fitted background",
+                alpha=0.8,
+            )
+
+            # Plot difference (residual)
+            ax2 = ax.twinx()
+            ax2.plot(
+                qxy_vals,
+                diff_vals,
+                "g-",
+                linewidth=1,
+                label="Residual (original - background)",
+                alpha=0.6,
+            )
+            ax2.set_ylabel("Residual Intensity (a.u.)", color="g")
+            ax2.tick_params(axis="y", labelcolor="g")
+
+            # Labels and title
+            ax.set_xlabel("qxy (Å$^{-1}$)")
+            ax.set_ylabel("Intensity (a.u.)")
+            ax.set_title(
+                f"{sample_name} idx={idx}, p={pressure} mN/m\n"
+                f"Horizontal slice comparison (qz mean: {orig_da.attrs['qz_range_min']:.3f}-{orig_da.attrs['qz_range_max']:.3f})"
+            )
+
+            # Legend
+            lines1, labels1 = ax.get_legend_handles_labels()
+            lines2, labels2 = ax2.get_legend_handles_labels()
+            ax.legend(lines1 + lines2, labels1 + labels2, loc="upper right")
+
+            # Grid
+            ax.grid(True, alpha=0.3)
+
+            plt.tight_layout()
+            out_plot = (
+                plot_path / f"{sample_name}_{idx}_{pressure}_horizontal_slice.png"
+            )
+            fig.savefig(out_plot, dpi=150, bbox_inches="tight")
+            plt.close(fig)
+
+        except Exception as e:
+            print(f"Failed to plot horizontal slice comparison for {orig_path}: {e}")
 
 
 if __name__ == "__main__":

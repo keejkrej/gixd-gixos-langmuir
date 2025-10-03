@@ -7,9 +7,7 @@ from utils.math.peak import detect_peaks_median
 
 def load_gixd_xarray(data_path, name, index):
     data_path = Path(data_path) / name
-    intensity = np.nan_to_num(
-        np.loadtxt(data_path / f"{name}_{index}_{index}_combined_I.dat"), nan=0
-    )
+    intensity = np.loadtxt(data_path / f"{name}_{index}_{index}_combined_I.dat")
     qxy = np.loadtxt(data_path / f"{name}_{index}_{index}_combined_Qxy.dat")
     qz = np.loadtxt(data_path / f"{name}_{index}_{index}_combined_Qz.dat")
     return xr.DataArray(
