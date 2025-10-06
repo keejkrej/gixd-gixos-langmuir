@@ -20,9 +20,7 @@ from utils.data.gixd import (
 # Inverse quadratic background subtraction
 # Uses model I = A*Qxy^-2 + B fitted to edge points
 # This is an alternative to water reference subtraction
-from utils.background import (
-    subtract_invquad_background,
-)
+from utils.background import subtract_invquad_background
 import xarray as xr
 from data_gixd import Sample, get_samples, WATER, ROI_IQ, ROI_ITAU
 

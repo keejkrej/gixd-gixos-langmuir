@@ -189,7 +189,7 @@ def plot_1d_profiles(sample_dir, plot_path, is_water=False):
             plt.tight_layout()
 
             # Save the combined plot
-            out_file = plot_path / f"{sample_name}_{idx}_{pressure}_profiles.png"
+            out_file = plot_path / f"{sample_name}_{idx}_{pressure}_1d_profiles.png"
             fig.savefig(out_file, dpi=150, bbox_inches="tight")
             plt.close(fig)
 
@@ -332,7 +332,7 @@ def plot_2d_maps(sample_dir, plot_path, is_water=False):
             plt.tight_layout()
 
             # Save the combined plot
-            out_file = plot_path / f"{sample_name}_{idx}_{pressure}_maps.png"
+            out_file = plot_path / f"{sample_name}_{idx}_{pressure}_2d_maps.png"
             fig.savefig(out_file, dpi=150, bbox_inches="tight")
             plt.close(fig)
 
