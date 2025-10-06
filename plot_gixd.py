@@ -10,9 +10,19 @@ from matplotlib.colors import ListedColormap
 
 # from scipy.ndimage import median_filter
 # from utils.math.com import exponential_weighted_center
-from utils.math.peak import fit_mirrored_gaussian
+from utils.fit.gixd import fit_mirrored_gaussian
 from data_gixd import ROI_IQ, ROI_ITAU
 
+# Fitting bounds for mirrored Gaussian parameters
+# Format: (lower_bounds, upper_bounds) for (amplitude, center, sigma, offset)
+AMPLITUDE_BOUNDS = (0, 10)
+CENTER_BOUNDS = (0, 60)
+SIGMA_BOUNDS = (0, 30)
+OFFSET_BOUNDS = (-1, 5)
+
+# Initial guess parameters for mirrored Gaussian fitting
+# Format: (amplitude, center, sigma, offset)
+MIRRORED_GAUSSIAN_INITIAL_GUESS = (2.0, 30.0, 20.0, 0.0)
 
 PROCESSED_DIR = "processed/gixd"
 PLOT_DIR = "plot/gixd"
@@ -89,26 +99,67 @@ def _plot_1d(
             suffix = "sub"
         label = f"idx={idx}, p={pressure}[mN/m]" + (f" ({suffix})" if suffix else "")
 
+        bounds = [
+            [AMPLITUDE_BOUNDS[0], CENTER_BOUNDS[0], SIGMA_BOUNDS[0], OFFSET_BOUNDS[0]],
+            [AMPLITUDE_BOUNDS[1], CENTER_BOUNDS[1], SIGMA_BOUNDS[1], OFFSET_BOUNDS[1]],
+        ]
+        # For tau profiles, fit mirrored Gaussian and update label with parameters
+        if axis_name == "tau":
+            try:
+                amplitude_fit, center_fit, sigma_fit, offset_fit, fitted_curve = (
+                    fit_mirrored_gaussian(
+                        axis_vals,
+                        intensity,
+                        initial_guess=MIRRORED_GAUSSIAN_INITIAL_GUESS,
+                        bounds=bounds,
+                    )
+                )
+                # Update label to include fitted parameters
+                label += f"\nA={amplitude_fit:.2f}, center={center_fit:.2f}, σ={sigma_fit:.2f}, offset={offset_fit:.2f}"
+            except Exception as e:
+                print(
+                    f"Warning: Failed to fit mirrored Gaussian for tau profile at pressure {pressure}: {e}"
+                )
+                # Add fallback note to label
+                label += "\n(fit failed, using argmax)"
+
         # Set color based on pressure, style based on data type
         if pressure == "NA":
             color = "gray"
         else:
             color = cmap(norm(pressure))
 
-        ax.scatter(
-            axis_vals,
-            intensity,
-            color=color,
-            s=20,  # marker size
-            alpha=0.7,
-            label=label,
-        )
+        if axis_name == "q":
+            # Use line plot for q profiles
+            ax.plot(
+                axis_vals,
+                intensity,
+                color=color,
+                linewidth=2,
+                alpha=0.8,
+                label=label,
+            )
+        else:
+            # Keep scatter plot for tau profiles
+            ax.scatter(
+                axis_vals,
+                intensity,
+                color=color,
+                s=20,  # marker size
+                alpha=0.7,
+                label=label,
+            )
 
         # For tau profiles, also plot the fitted mirrored Gaussian curve and center line
         if axis_name == "tau":
             try:
-                _, center_fit, _, _, fitted_curve = fit_mirrored_gaussian(
-                    axis_vals, intensity
+                amplitude_fit, center_fit, sigma_fit, offset_fit, fitted_curve = (
+                    fit_mirrored_gaussian(
+                        axis_vals,
+                        intensity,
+                        initial_guess=MIRRORED_GAUSSIAN_INITIAL_GUESS,
+                        bounds=bounds,
+                    )
                 )
                 ax.plot(
                     axis_vals,

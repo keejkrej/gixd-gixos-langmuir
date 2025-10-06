@@ -57,7 +57,7 @@ def test_mirrored_gaussian():
     plt.savefig("test_mirrored_gauss.png", dpi=150)
     plt.close()
 
-    print(f"\nTest plot saved as 'test_mirrored_gauss.png'")
+    print("\nTest plot saved as 'test_mirrored_gauss.png'")
     print("Fitting test completed successfully!")
 
 

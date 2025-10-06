@@ -1,6 +1,6 @@
 import numpy as np
 import xarray as xr
-from typing import Tuple, Optional
+from typing import Tuple
 from scipy.optimize import curve_fit
 
 
