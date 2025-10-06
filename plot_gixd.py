@@ -66,8 +66,8 @@ def parse_index_pressure(filename_or_varname, is_water=False):
 # Note: _plot_1d function removed as it's not used in current plotting pipeline
 
 
-def plot_essential_1d_profiles(sample_dir, plot_path, is_water=False):
-    """Plot essential 1D profiles: sub_invquad_Iq, sub_invquad_Itau"""
+def plot_1d_profiles(sample_dir, plot_path, is_water=False):
+    """Plot 1D profiles: sub_invquad_Iq, sub_invquad_Itau"""
     sample_name = sample_dir.name
 
     # Find consolidated 1D profile file
@@ -189,9 +189,7 @@ def plot_essential_1d_profiles(sample_dir, plot_path, is_water=False):
             plt.tight_layout()
 
             # Save the combined plot
-            out_file = (
-                plot_path / f"{sample_name}_{idx}_{pressure}_essential_profiles.png"
-            )
+            out_file = plot_path / f"{sample_name}_{idx}_{pressure}_profiles.png"
             fig.savefig(out_file, dpi=150, bbox_inches="tight")
             plt.close(fig)
 
@@ -204,9 +202,9 @@ def plot_essential_1d_profiles(sample_dir, plot_path, is_water=False):
 # Note: _plot_2d function removed as it's not used in current plotting pipeline
 
 
-def plot_essential_2d_maps(sample_dir, plot_path, is_water=False):
+def plot_2d_maps(sample_dir, plot_path, is_water=False):
     """
-    Plot essential 2D maps: orig_cart, bg_invquad_cart, sub_invquad_cart, sub_invquad_polar
+    Plot 2D maps: orig_cart, bg_invquad_cart, sub_invquad_cart, sub_invquad_polar
     """
     sample_name = sample_dir.name
 
@@ -334,7 +332,7 @@ def plot_essential_2d_maps(sample_dir, plot_path, is_water=False):
             plt.tight_layout()
 
             # Save the combined plot
-            out_file = plot_path / f"{sample_name}_{idx}_{pressure}_essential_maps.png"
+            out_file = plot_path / f"{sample_name}_{idx}_{pressure}_maps.png"
             fig.savefig(out_file, dpi=150, bbox_inches="tight")
             plt.close(fig)
 
@@ -358,10 +356,10 @@ def main():
         is_water = sample_name == "water"
         print(f"Plotting {sample_name}...")
 
-        # Plot simplified set of essential plots
+        # Plot simplified set of plots
         if not is_water:
-            tau_max_data = plot_essential_1d_profiles(sample_dir, plot_path, is_water)
-            plot_essential_2d_maps(sample_dir, plot_path, is_water)
+            tau_max_data = plot_1d_profiles(sample_dir, plot_path, is_water)
+            plot_2d_maps(sample_dir, plot_path, is_water)
             plot_horizontal_slice_comparison(sample_dir, plot_path, is_water)
 
             # Store tau_max data for this sample (skip water for tau_max plot)
