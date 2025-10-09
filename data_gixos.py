@@ -12,9 +12,7 @@ REFERENCE: Optional[Sample] = None
 
 SAMPLES: list[Sample] = [
     {"name": "azotrans", "index": [49, 53, 57, 61], "pressure": [0.5, 10, 20, 30]},
-    {"name": "azocis", "index": [77, 81, 85, 89], "pressure": [5, 10, 20, 30]},
-    {"name": "azocis02", "index": [105, 109], "pressure": [3.3, 30]},
-    {"name": "azocis03", "index": [114, 118], "pressure": [0.1, 30]},
+    {"name": "azocis", "index": [77, 81, 85, 89, 105, 109, 114, 118], "pressure": [5, 10, 20, 30, 3.3, 30, 0.1, 30]},
     {"name": "dopc", "index": [10, 15, 19, 23], "pressure": [0.1, 10, 20, 30]},
     {"name": "redazo", "index": [127, 131, 135, 139], "pressure": [0.1, 10, 20, 30]},
 ]
