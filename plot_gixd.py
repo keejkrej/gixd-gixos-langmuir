@@ -1125,19 +1125,19 @@ def main():
             full_name, _, _ = get_sample_info(sample_name)
 
             # Use pandas groupby to handle duplicates properly
-            grouped = tilt_df.groupby('pressure')['tilt'].agg(['mean', 'count'])
+            grouped = tilt_df.groupby("pressure")["tilt"].agg(["mean", "count"])
             pressures = grouped.index.values
-            tau_values = grouped['mean'].values
-            
+            tau_values = grouped["mean"].values
+
             # Debug: print duplicate info
-            duplicates = grouped[grouped['count'] > 1]
+            duplicates = grouped[grouped["count"] > 1]
             if len(duplicates) > 0:
                 print(f"{sample_name}: Found duplicate pressures:")
-                for pressure, count in duplicates['count'].items():
+                for pressure, count in duplicates["count"].items():
                     print(f"  Pressure {pressure}: {count} entries")
                 # Show all entries for debugging
                 print(f"  All entries: {len(tilt_df)} total")
-                print(tilt_df.sort_values('pressure').to_string())
+                print(tilt_df.sort_values("pressure").to_string())
             if sample_name == "dopc":
                 color = "black"
             elif sample_name == "azotrans":
@@ -1149,7 +1149,7 @@ def main():
                 ax_tilt.plot(pressures, tau_values, "o-", label=full_name, color=color)
 
         ax_tilt.set_xlabel("Pressure [mN/m]")
-        ax_tilt.set_ylabel("Tau [deg]")
+        ax_tilt.set_ylabel("τ [deg]")
         ax_tilt.set_title(
             "Tilt angle (τ)\nat various lateral pressures", style="italic"
         )
