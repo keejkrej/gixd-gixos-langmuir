@@ -22,12 +22,12 @@ SAMPLES: list[Sample] = [
         "index": [78, 82, 86, 90, 106, 110, 115, 119],
         "pressure": [5, 10, 20, 30, 3.3, 30, 0.1, 30],
     },
-    {
-        "name": "dopc",
-        "full_name": "DOPC",
-        "index": [16, 12, 20, 24],
-        "pressure": [0.1, 10, 20, 30],
-    },
+    # {
+    #     "name": "dopc",
+    #     "full_name": "DOPC",
+    #     "index": [16, 12, 20, 24],
+    #     "pressure": [0.1, 10, 20, 30],
+    # },
     # {
     #     "name": "redazo",
     #     "full_name": "Red AzoPC",
