@@ -1001,6 +1001,8 @@ def main():
             # Assign colors based on sample type
             if sample_name == "dopc":
                 color = "black"
+            elif sample_name == "redazo":
+                color = "red"
             elif sample_name == "azotrans":
                 color = "blue"  # Changed from red to blue
             elif sample_name == "azocis":
